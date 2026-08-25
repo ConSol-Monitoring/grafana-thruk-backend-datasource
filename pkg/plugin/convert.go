@@ -138,8 +138,10 @@ func processUnitType(columnName string, columnMetadatas map[string]ThrukWrappedJ
 			if configStructConverted, convOk := mc.Config.(struct{ Unit string }); convOk {
 				switch configStructConverted.Unit {
 				case "%":
+					// there is nothing to do with known unit types right now
 					return
 				case "s":
+					// there is nothing to do with known unit types right now
 					return
 				}
 			}
