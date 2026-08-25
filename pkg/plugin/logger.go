@@ -18,10 +18,11 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 		return nil, fmt.Errorf("passed jsonData is nil")
 	}
 
+	var logLevel zapcore.Level
+
 	// imitiate syslog(3) log levels
 	// emerg, alert, crit, err, warning, notice, info, debug
 	// 0    , 1    , 2   , 3  , 4      , 5     , 6   , 7
-	var logLevel zapcore.Level
 	switch jsonData.LogLevel {
 	case 0:
 		logLevel = zapcore.FatalLevel
@@ -59,17 +60,22 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 	// Create directories if they don't exist
 	dir := filepath.Dir(expandedPath)
 	if dir != "." {
-		os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("error when making directories for the logfile: %w", err)
+		}
 	}
 
 	filename := expandedPath
+
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error when creating a file descriptor: %w", err)
 	}
+
 	err = file.Close()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error when closing the file descriptor: %w", err)
 	}
 
 	config := zap.NewProductionConfig()

@@ -54,12 +54,12 @@ func anyToInt64(v any) int64 {
 func anyToBool(v any) bool {
 	switch val := v.(type) {
 	case int64:
-		if v.(int64) == 1 {
+		if vInt64, ok := v.(int64); ok && vInt64 == 1 {
 			return true
 		}
 		return false
 	case float64:
-		if v.(float64) == 1 {
+		if vFloat64, ok := v.(float64); ok && vFloat64 == 1 {
 			return true
 		}
 		return false
@@ -91,27 +91,26 @@ func anyToString(v any) string {
 }
 
 // To get all possible types from Thruk, run this command in Thruk sources /src/thruk/lib/Thruk/Controller/Rest/V1
-// grep -nrw '"type":' docs.pm > types.txt
-// grep -nrw '"type":' livestatus_docs.pm > types.txt
+// grep -nrw '"type":' docs.pm > types.txt .
+// grep -nrw '"type":' livestatus_docs.pm > types.txt .
 func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJsonResponseMetaColumn) (data.FieldType, string) {
-	if mc, ok := columnMetadatas[columnName]; ok {
-
+	if columnMetadata, ok := columnMetadatas[columnName]; ok {
 		// if the columnMetadata has a saved type, use it
-		if mc.GrafanaDataType != data.FieldTypeUnknown {
-			return mc.GrafanaDataType, mc.Type
+		if columnMetadata.GrafanaDataType != data.FieldTypeUnknown {
+			return columnMetadata.GrafanaDataType, columnMetadata.Type
 		}
 
-		switch mc.Type {
+		switch columnMetadata.Type {
 		case "number":
-			return data.FieldTypeFloat64, mc.Type
+			return data.FieldTypeFloat64, columnMetadata.Type
 		case "time":
-			return data.FieldTypeTime, mc.Type
+			return data.FieldTypeTime, columnMetadata.Type
 		case "bool", "boolean":
-			return data.FieldTypeBool, mc.Type
+			return data.FieldTypeBool, columnMetadata.Type
 		case "string":
-			return data.FieldTypeString, mc.Type
+			return data.FieldTypeString, columnMetadata.Type
 		case "array_of_strings":
-			return data.FieldTypeString, mc.Type
+			return data.FieldTypeString, columnMetadata.Type
 		default:
 			return data.FieldTypeUnknown, "unknown"
 		}

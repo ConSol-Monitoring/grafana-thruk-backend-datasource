@@ -10,15 +10,21 @@ import (
 
 func TestQueryData(t *testing.T) {
 	ds := Datasource{
-		logger: zap.NewNop().Sugar(),
+		url:        "",
+		httpClient: nil,
+		uid:        "",
+		logger:     zap.NewNop().Sugar(),
 	}
 
 	resp, err := ds.QueryData(
 		context.Background(),
 		&backend.QueryDataRequest{
+			PluginContext: backend.PluginContext{},
+			Headers:       map[string]string{},
 			Queries: []backend.DataQuery{
 				{RefID: "A"},
 			},
+			Format: backend.DataFrameFormat_JSON,
 		},
 	)
 	if err != nil {

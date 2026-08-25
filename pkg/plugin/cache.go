@@ -17,37 +17,34 @@ type CachedResult struct {
 	expirationTime time.Time
 }
 
+//nolint:gochecknoglobals // need cache to be globally defined
 var (
 	cachedResults      = []*CachedResult{}
 	cachedResultsMutex sync.RWMutex
 )
 
 func findCachedResult(datasourceUID string, thrukUrl string, headers *map[string][]string) *CachedResult {
-
 	for _, result := range cachedResults {
 		if result.datasourceUID == datasourceUID && result.thrukUrl == thrukUrl {
-
 			headersMatch := true
-
 			if headers != nil {
 				if len(*headers) != len(*result.headers) {
 					continue
 				}
-
 				for header, value := range *headers {
 					resultValue, ok := (*result.headers)[header]
+
 					if !ok {
 						headersMatch = false
 						break
 					}
+
 					if !slices.Equal(value, resultValue) {
 						headersMatch = false
 						break
 					}
 				}
-
 			}
-
 			if headersMatch {
 				return result
 			}
@@ -73,6 +70,7 @@ func cleanupExpiredResults() {
 	cachedResults = newCachedresults
 }
 
+//nolint:gochecknoinits // need a global ticker
 func init() {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
@@ -118,7 +116,6 @@ var (
 
 func findCachePolicy(qm *QueryModel, headers *map[string][]string) *CachePolicy {
 	for _, policy := range cachePolicies {
-
 		if policy.filterToTables != nil &&
 			(qm == nil || !slices.Contains(*policy.filterToTables, qm.Table)) {
 			continue
@@ -184,9 +181,7 @@ func writeCachedResult(qm *QueryModel, datasourceUID string, thrukUrl string, he
 func rewriteAliasedEndpoints(qm *QueryModel) (changed bool) {
 	// Aliases come from Thruk Docs
 	// https://www.thruk.org/documentation/rest.html
-
 	changed = false
-
 	// Convert to the endpoint with lower lexicographical value
 	switch qm.Table {
 	case "/index":

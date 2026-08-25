@@ -17,6 +17,7 @@ import (
 // It never returns the cookie values themselves, so it is safe to log.
 func cookieNames(cookieHeaderValues []string) []string {
 	var names []string
+
 	for _, value := range cookieHeaderValues {
 		for _, part := range strings.Split(value, ";") {
 			name := strings.TrimSpace(part)
@@ -57,11 +58,12 @@ func HTTPClientOptionsSetDefaults(opts *httpclient.Options) {
 }
 
 // String returns a string representation of the DataSourceInstanceSettings.
-func DataSourceInstanceSettingsToString(s *backend.DataSourceInstanceSettings) string {
+func DataSourceInstanceSettingsToString(settings *backend.DataSourceInstanceSettings) string {
 	var jsonDataBytes []byte
 	jsonDataStr := "nil"
-	if s.JSONData != nil {
-		jsonDataBytes = []byte(s.JSONData)
+
+	if settings.JSONData != nil {
+		jsonDataBytes = []byte(settings.JSONData)
 		// Pretty-print the JSON
 		var prettyJSON bytes.Buffer
 		if err := json.Indent(&prettyJSON, jsonDataBytes, "", "  "); err == nil {
@@ -72,13 +74,16 @@ func DataSourceInstanceSettingsToString(s *backend.DataSourceInstanceSettings) s
 	}
 
 	var decryptedDataStr string
-	if s.DecryptedSecureJSONData != nil {
+
+	if settings.DecryptedSecureJSONData != nil {
 		// log only the keys, never the secret values
-		keys := make([]string, 0, len(s.DecryptedSecureJSONData))
-		for k := range s.DecryptedSecureJSONData {
+		keys := make([]string, 0, len(settings.DecryptedSecureJSONData))
+		for k := range settings.DecryptedSecureJSONData {
 			keys = append(keys, k)
 		}
+
 		sort.Strings(keys)
+
 		decryptedDataStr = "\n" + strings.Join(keys, "\n")
 	} else {
 		decryptedDataStr = "nil"
@@ -99,19 +104,19 @@ func DataSourceInstanceSettingsToString(s *backend.DataSourceInstanceSettings) s
   Updated: %s
   APIVersion: %s
 }`,
-		s.ID,
-		s.UID,
-		s.Type,
-		s.Name,
-		s.URL,
-		s.User,
-		s.Database,
-		s.BasicAuthEnabled,
-		s.BasicAuthUser,
+		settings.ID,
+		settings.UID,
+		settings.Type,
+		settings.Name,
+		settings.URL,
+		settings.User,
+		settings.Database,
+		settings.BasicAuthEnabled,
+		settings.BasicAuthUser,
 		jsonDataStr,
 		decryptedDataStr,
-		s.Updated.Format(time.RFC3339),
-		s.APIVersion,
+		settings.Updated.Format(time.RFC3339),
+		settings.APIVersion,
 	)
 }
 
@@ -188,14 +193,17 @@ func HTTPClientOptionsToString(opts httpclient.Options) string {
 	var buf bytes.Buffer
 	buf.WriteString(fmt.Sprintf("HTTPClientOptions{ForwardHTTPHeaders:%t", opts.ForwardHTTPHeaders))
 	if opts.Timeouts != nil {
-		buf.WriteString(fmt.Sprintf(", Timeout:%s", opts.Timeouts.Timeout))
+		fmt.Fprintf(&buf, ", Timeout:%s", opts.Timeouts.Timeout)
 	}
+
 	if opts.TLS != nil {
-		buf.WriteString(fmt.Sprintf(", TLS.InsecureSkipVerify:%t", opts.TLS.InsecureSkipVerify))
+		fmt.Fprintf(&buf, ", TLS.InsecureSkipVerify:%t", opts.TLS.InsecureSkipVerify)
 	}
+
 	if opts.BasicAuth != nil {
-		buf.WriteString(fmt.Sprintf(", BasicAuth.User:%s", opts.BasicAuth.User))
+		fmt.Fprintf(&buf, ", BasicAuth.User:%s", opts.BasicAuth.User)
 	}
+
 	if len(opts.Header) > 0 {
 		// log only the header names, never the values (they may contain secrets)
 		keys := make([]string, 0, len(opts.Header))
@@ -203,15 +211,18 @@ func HTTPClientOptionsToString(opts httpclient.Options) string {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		buf.WriteString(", Headers:[" + strings.Join(keys, ", ") + "]")
+
+		fmt.Fprintf(&buf, ", Headers:[%s]", strings.Join(keys, ", "))
 	}
+
 	if len(opts.Labels) > 0 {
 		buf.WriteString(", Labels:[")
 		for key, values := range opts.Labels {
-			buf.WriteString(fmt.Sprintf("%s=%v, ", key, values))
+			fmt.Fprintf(&buf, "%s=%v, ", key, values)
 		}
 		buf.WriteString("]")
 	}
+
 	buf.WriteByte('}')
 	return buf.String()
 }

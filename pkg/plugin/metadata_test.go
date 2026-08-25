@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildQueryMeta(t *testing.T) {
-	ua, err := useragent.New("10.4.0", "linux", "amd64")
+	userAgent, err := useragent.New("10.4.0", "linux", "amd64")
 	if err != nil {
 		t.Fatalf("failed to create user agent: %v", err)
 	}
@@ -27,12 +27,12 @@ func TestBuildQueryMeta(t *testing.T) {
 			Role:  "Viewer",
 		},
 		DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{UID: "ds-1"},
-		UserAgent:                  ua,
+		UserAgent:                  userAgent,
 	}
 
 	ctx := backend.WithPluginContext(context.Background(), pc)
 	ctx = backend.WithUser(ctx, pc.User)
-	ctx = useragent.WithUserAgent(ctx, ua)
+	ctx = useragent.WithUserAgent(ctx, userAgent)
 
 	req := &backend.QueryDataRequest{
 		PluginContext: pc,
