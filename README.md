@@ -152,8 +152,8 @@ How to create a new release:
     %> git commit -am "Release v${RELVERSION}"
     %> git tag -a v${RELVERSION} -m "Create release tag v${RELVERSION}"
     %> make GRAFANA_ACCESS_POLICY_TOKEN=${GRAFANA_ACCESS_POLICY_TOKEN} releasebuild
-    # create release here https://github.com/sni/grafana-thruk-datasource/releases/new
-    # submit plugin update here https://grafana.com/orgs/sni/plugins
+    # create release here https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/releases/new
+    # submit plugin update here https://grafana.com/orgs/consolmonitoring/plugins
 
 ## Changelog
 
