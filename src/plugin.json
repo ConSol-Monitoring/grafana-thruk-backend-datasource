@@ -6,9 +6,10 @@
   "metrics": true,
   "backend": true,
   "alerting": true,
+  "annotations": true,
   "executable": "gpx_thruk_datasource",
   "info": {
-    "description": "",
+    "description": "Grafana backend datasource plugin using Thruk's REST API to query and visualize monitoring data from OMD / Thruk instances.",
     "author": {
       "name": "ConSol-Monitoring Team"
     },
@@ -17,8 +18,30 @@
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [],
-    "screenshots": [],
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource"
+      },
+      {
+        "name": "Documentation",
+        "url": "https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/blob/master/README.md"
+      }
+    ],
+    "screenshots": [
+      {
+        "name": "Thruk Datasource with Backend",
+        "path": "img/screenshot.png"
+      },
+      {
+        "name": "Query Editor",
+        "path": "img/variables.png"
+      },
+      {
+        "name": "Annotations",
+        "path": "img/annotations.png"
+      }
+    ],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },
