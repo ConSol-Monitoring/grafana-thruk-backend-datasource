@@ -46,7 +46,7 @@ type DatasourceSettingsJSONDataPartial struct {
 	// from interface ThrukDataSourceOptions in src/types.ts
 	// ======================
 	// 'thruk_auth' is always added when parsing props in ConfigEditor.tsx
-	KeepCookies []string `json:"keepCookies"`
+	// KeepCookies []string `json:"keepCookies"`
 	// Has its own <Input> field in ConfigEditor.tsx
 	LogLevel int64 `json:"logLevel"`
 	// Has its own <Input> field in ConfigEditor.tsx
