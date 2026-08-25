@@ -11,3 +11,4 @@ dist/
 logs/
 .test_scripts/
 test-results/
+playwright-report/
