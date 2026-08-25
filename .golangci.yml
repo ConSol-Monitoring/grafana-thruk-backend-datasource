@@ -1,5 +1,37 @@
 version: '2'
 linters:
+  default: all
   exclusions:
     paths:
       - node_modules
+  settings:
+    lll:
+      line-length: 200
+    funlen:
+      lines: 80
+      statements: 45
+    goconst:
+      min-len: 8
+      min-occurrences: 12
+    depguard:
+      rules:
+        main:
+          files:
+            - "$all"
+          allow:
+            - "github.com/grafana/grafana-plugin-sdk-go/"
+            - "go.uber.org/zap"
+            - "os"
+            - "fmt"
+            - "slices"
+            - "sync"
+            - "time"
+            - "encoding/json"
+            - "strconv"
+            - "strings"
+            - "context"
+            - "net/http"
+            - "net/url"
+            - "sort"
+            - "path/filepath"
+            - "testing"

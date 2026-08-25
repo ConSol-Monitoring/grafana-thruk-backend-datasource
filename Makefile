@@ -80,3 +80,34 @@ releasebuild:
 		echo "unknown make target(s): $(MAKECMDGOALS)"; \
 		exit 1; \
 	fi
+
+# golangci-lint is used for linting the backend
+GO          ?= go
+GOBIN       ?= $(shell $(GO) env GOPATH)/bin
+GOLANGCI    ?= $(GOBIN)/golangci-lint
+PROJECT     ?= grafana-thruk-backend-datasource
+
+# current go version as major*10000+minor, ex.: go1.27.0 -> 10027
+GOVERSION        := $(shell $(GO) version | awk '/^go version go/{ v = $$3; sub(/^go/, "", v); split(v, a, "."); print a[1]*10000 + a[2] }')
+MINGOVERSION     := 10026
+MINGOVERSIONSTR  := 1.26
+
+versioncheck:
+	@if [ -z "$(GOVERSION)" ] || [ "$(GOVERSION)" -lt "$(MINGOVERSION)" ]; then \
+		echo "**** ERROR:"; \
+		echo "**** $(PROJECT) requires at least golang version $(MINGOVERSIONSTR) or higher"; \
+		echo "**** this is: $$($(GO) version)"; \
+		exit 1; \
+	fi
+
+tools: | versioncheck
+	@if [ ! -x "$(GOLANGCI)" ]; then \
+		echo "installing golangci-lint ..."; \
+		( cd buildtools && $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint ); \
+	fi
+
+
+golangci: tools
+	$(GOLANGCI) version
+	@echo "  - GOOS=linux"
+	GOOS=linux CGO_ENABLED=0 $(GOLANGCI) run $(GOLANG_CI_OPTIONS) ./...
