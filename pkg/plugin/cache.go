@@ -120,9 +120,7 @@ func findCachePolicy(qm *QueryModel, headers *map[string][]string) *CachePolicy 
 	for _, policy := range cachePolicies {
 
 		if policy.filterToTables != nil &&
-			qm == nil &&
-			qm.Table != "" &&
-			!slices.Contains(*policy.filterToTables, qm.Table) {
+			(qm == nil || !slices.Contains(*policy.filterToTables, qm.Table)) {
 			continue
 		}
 
