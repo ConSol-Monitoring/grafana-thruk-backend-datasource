@@ -19,9 +19,8 @@ export function ConfigEditor(props: Props) {
     ...options,
     jsonData: {
       ...options.jsonData,
-      keepCookies: options.jsonData.keepCookies || ['thruk_auth'],
       logLevel: options.jsonData.logLevel || 0,
-      logPath: options.jsonData.logPath || '$HOME/var/log/grafana/thruk-grafana-plugin.log',
+      logPath: options.jsonData.logPath || '${OMD_ROOT}/var/log/grafana/consolmonitoring-thruk-datasource.log',
     },
   };
 
