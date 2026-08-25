@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+*.*~
+coverage/
+dist/
+.yarnrc
+.npm/
+.bash_history
+.cache/
+.eslintcache
+logs/
+.test_scripts/

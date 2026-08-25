@@ -1,0 +1,343 @@
+import { defaults, debounce } from 'lodash';
+import React, { useRef } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import {
+  SegmentSection,
+  InlineLabel,
+  ComboboxOption,
+  Input,
+  SegmentAsync,
+  InlineField,
+  IconButton,
+  Combobox,
+} from '@grafana/ui';
+import { QueryEditorProps, SelectableValue } from '@grafana/data';
+import { getTemplateSrv } from '@grafana/runtime';
+import { DataSource, defaultLimit } from '../datasource';
+import { ThrukDataSourceOptions, ThrukQuery, defaultQuery } from '../types';
+type Props = QueryEditorProps<DataSource, ThrukQuery, ThrukDataSourceOptions>;
+
+export const QueryEditor = (props: Props) => {
+  const { onRunQuery } = props;
+  const debouncedRunQuery = React.useMemo(() => debounce(onRunQuery, 500), [onRunQuery]);
+
+  const queryDefaulted = defaults({}, props.query, defaultQuery);
+
+  const tablesCache = useRef<string[] | null>(null);
+  const columnsCache = useRef<{ url: string; columns: string[] } | null>(null);
+
+  const prependDashboardVariables = (data: string[]) => {
+    getTemplateSrv()
+      .getVariables()
+      .forEach((v) => {
+        data.unshift('/^$' + v.name + '$/');
+      });
+    return data;
+  };
+
+  const fetchTables = (): Promise<string[]> => {
+    if (tablesCache.current && tablesCache.current.length > 0) {
+      return Promise.resolve(tablesCache.current.slice());
+    }
+    return props.datasource
+      .getResource('tables')
+      .then((response: any) => {
+        const urls = response.map((row: { url?: string }) => row.url);
+        tablesCache.current = urls.slice();
+        return urls;
+      })
+      .catch((err: any) => {
+        console.warn('failed to fetch tables', err);
+        return [];
+      });
+  };
+
+  const loadTables = (filter?: string): Promise<string[]> => {
+    return fetchTables()
+      .then(prependDashboardVariables)
+      .then((data) => data.filter((item) => !filter || (item && item.toLowerCase().includes(filter.toLowerCase()))));
+  };
+
+  const fetchColumns = (): Promise<string[]> => {
+    const url = props.datasource.replaceVariables(queryDefaulted.table);
+    if (columnsCache.current && columnsCache.current.url === url) {
+      return Promise.resolve(columnsCache.current.columns.slice());
+    }
+    return props.datasource
+      .getResource('columns', { table: url })
+      .then((response: any) => {
+        if (!response) {
+          return ['*'];
+        }
+        if (Array.isArray(response) && response[0]) {
+          const cols = Object.keys(response[0]);
+          columnsCache.current = { url, columns: cols.slice() };
+          return cols;
+        }
+        if (response instanceof Object) {
+          const cols = Object.keys(response);
+          columnsCache.current = { url, columns: cols.slice() };
+          return cols;
+        }
+        return ['*'];
+      })
+      .catch((err: any) => {
+        console.warn('failed to fetch columns', err);
+        return ['*'];
+      });
+  };
+
+  const loadColumns = (filter?: string): Promise<string[]> => {
+    if (!queryDefaulted.table) {
+      return Promise.resolve(['*']);
+    }
+    return fetchColumns()
+      .then((data: string[]) => {
+        ['avg()', 'min()', 'max()', 'sum()', 'count()', 'calc()', 'concat()', 'uniq()'].reverse().forEach((el) => {
+          data.unshift(el);
+        });
+        return data;
+      })
+      .then(prependDashboardVariables)
+      .then((data) => data.filter((item) => !filter || (item && item.toLowerCase().includes(filter.toLowerCase()))));
+  };
+
+  const onValueChange = (key: keyof ThrukQuery, value: any) => {
+    const updatedQuery = {
+      ...queryDefaulted,
+      [key]: value as never,
+    };
+    props.onChange(updatedQuery);
+    debouncedRunQuery();
+  };
+
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) {
+      return;
+    }
+    const newColumns = Array.from(queryDefaulted.columns);
+    const [removed] = newColumns.splice(result.source.index, 1);
+    newColumns.splice(result.destination.index, 0, removed);
+    props.onChange({
+      ...queryDefaulted,
+      columns: newColumns,
+    });
+    debouncedRunQuery();
+  };
+
+  const getListStyle = (isDraggingOver: boolean) => ({
+    background: isDraggingOver ? 'lightblue' : '',
+    display: 'flex' as const,
+    overflow: 'auto' as const,
+    padding: '0 12px',
+  });
+
+  const getItemStyle = (isDragging: boolean, draggableStyle: any) => ({
+    userSelect: 'none' as const,
+    background: isDragging ? 'lightgreen' : '',
+    ...draggableStyle,
+  });
+
+  const outputRef = useRef<HTMLInputElement>(null);
+  const copyBtn = useRef<HTMLButtonElement>(null);
+
+  return (
+    <>
+      <div className="gf-form">
+        <SegmentSection label="FROM">
+          <></>
+        </SegmentSection>
+        <Combobox
+          isClearable={true}
+          createCustomValue={true}
+          value={queryDefaulted.table || '/'}
+          onChange={(v) => {
+            onValueChange('table', v !== null ? v.value : '/');
+          }}
+          options={(filter?: string): Promise<ComboboxOption[]> => {
+            return loadTables(filter).then((data) => {
+              return data.map((item) => ({ value: item }));
+            });
+          }}
+          minWidth={30}
+          maxWidth={300}
+          width={'auto'}
+        />
+        <InlineField grow>
+          <InlineLabel> </InlineLabel>
+        </InlineField>
+      </div>
+      <div className="gf-form" style={{ width: '100%' }}>
+        <SegmentSection label="SELECT">
+          <></>
+        </SegmentSection>
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="thruk-columns-list" direction="horizontal">
+            {(provided, snapshot) => (
+              <div ref={provided.innerRef} style={getListStyle(snapshot.isDraggingOver)} {...provided.droppableProps}>
+                {queryDefaulted.columns.map((sel, index) => (
+                  <Draggable key={'thruk-col' + index} draggableId={'thruk-col' + index} index={index}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        style={getItemStyle(snapshot.isDragging, provided.draggableProps.style)}
+                      >
+                        <InlineLabel width={'auto'}>
+                          <Combobox
+                            isClearable={true}
+                            createCustomValue={true}
+                            value={sel || '*'}
+                            options={(filter?: string): Promise<ComboboxOption[]> => {
+                              return loadColumns(filter).then((data) => {
+                                return data.map((item) => ({ value: item, label: item }));
+                              });
+                            }}
+                            width={'auto'}
+                            minWidth={5}
+                            onChange={(v) => {
+                              if (v === null) {
+                                queryDefaulted.columns.splice(index, 1);
+                              } else {
+                                queryDefaulted.columns[index] = v.value;
+                              }
+                              let i = queryDefaulted.columns.indexOf('*');
+                              if (i !== -1) {
+                                queryDefaulted.columns.splice(i, 1);
+                              }
+                              if (queryDefaulted.columns.length === 0) {
+                                queryDefaulted.columns.push('*');
+                              }
+                              props.onChange(queryDefaulted);
+                              debouncedRunQuery();
+                            }}
+                          />
+                        </InlineLabel>
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+        <SegmentAsync
+          value={'+'}
+          style={{ width: 'auto', padding: '0 4px' }}
+          loadOptions={(filter?: string): Promise<SelectableValue[]> => {
+            return loadColumns(filter).then((data) => {
+              return data.map((item) => ({ value: item, label: item }));
+            });
+          }}
+          onChange={(v) => {
+            queryDefaulted.columns.push(v.value!);
+            const i = queryDefaulted.columns.indexOf('*');
+            if (i !== -1) {
+              queryDefaulted.columns.splice(i, 1);
+            }
+            props.onChange(queryDefaulted);
+            debouncedRunQuery();
+          }}
+          inputMinWidth={200}
+        />
+        <InlineField grow>
+          <InlineLabel> </InlineLabel>
+        </InlineField>
+      </div>
+      <div className="gf-form">
+        <SegmentSection label="WHERE">
+          <></>
+        </SegmentSection>
+        <Input
+          placeholder="condition..., ex.: ( host_name = '$host' OR host_alias ~ '^a' ) AND time = $time"
+          value={queryDefaulted.condition?.toString()}
+          onChange={(v) => {
+            onValueChange('condition', v.currentTarget.value);
+          }}
+        />
+      </div>
+      <div className="gf-form">
+        <SegmentSection label="LIMIT">
+          <></>
+        </SegmentSection>
+        <Input
+          placeholder={defaultLimit.toString()}
+          value={queryDefaulted.limit?.toString()}
+          onChange={(v) => {
+            const limit = Number(v.currentTarget.value);
+            if (limit <= 0) {
+              onValueChange('limit', defaultLimit);
+            } else {
+              onValueChange('limit', limit);
+            }
+          }}
+          type={'number'}
+          width={10}
+        />
+        <SegmentSection label={(<div style={{ textAlign: 'right', width: '100%' }}>AS</div>) as unknown as string}>
+          <></>
+        </SegmentSection>
+        <Combobox
+          value={queryDefaulted.type || 'table'}
+          options={[
+            { label: 'Table', value: 'table' },
+            { label: 'Timeseries', value: 'graph' },
+            { label: 'Logs', value: 'logs' },
+          ]}
+          onChange={(v) => {
+            onValueChange('type', v);
+          }}
+          isClearable={false}
+          createCustomValue={false}
+          width="auto"
+          minWidth={15}
+        />
+        <InlineField grow>
+          <InlineLabel> </InlineLabel>
+        </InlineField>
+        <SegmentSection label={(<div style={{ textAlign: 'right', width: '100%' }}>Helper</div>) as unknown as string}>
+          <></>
+        </SegmentSection>
+        <Input
+          width={16}
+          placeholder="url encode text"
+          onChange={(v) => {
+            if (outputRef.current) {
+              outputRef.current.value = encodeURIComponent(v.currentTarget.value);
+            }
+          }}
+        />
+        <Input ref={outputRef} width={12} placeholder="output" value={''} readOnly={true} />
+        <IconButton
+          ref={copyBtn}
+          name="copy"
+          size="lg"
+          variant="secondary"
+          tooltip="Copy encoded text to clipboard"
+          style={{ padding: '6px', borderRadius: '4px' }}
+          onClick={() => {
+            if (outputRef.current) {
+              try {
+                navigator.clipboard?.writeText(outputRef.current.value);
+              } catch (e) {
+                console.warn(e);
+              }
+              if (copyBtn.current) {
+                copyBtn.current.style.transition = '';
+                copyBtn.current.style.backgroundColor = '#00b500';
+                setTimeout(() => {
+                  if (copyBtn.current) {
+                    copyBtn.current.style.transition = 'background-color 1s';
+                    copyBtn.current.style.backgroundColor = '';
+                  }
+                }, 500);
+              }
+            }
+          }}
+        />
+      </div>
+    </>
+  );
+};

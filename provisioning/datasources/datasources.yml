@@ -1,0 +1,102 @@
+apiVersion: 1
+
+datasources:
+  - name: 'demo-thruk-org'
+    uid: 'demo-thruk-org'
+    type: 'consolmonitoring-thruk-datasource'
+    url: 'https://demo.thruk.org/demo/thruk'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    basicAuth: true
+    basicAuthUser: test
+    jsonData:
+      authType: basic
+      path: '/resources'
+      logPath: './logs/demo-thruk-org.log'
+      logLevel: 7
+    secureJsonData:
+      apiKey: 'api-key'
+      basicAuthPassword: test
+
+  # Example OMD using Basic Auth
+  # - name: 'omd-dev-basic-auth'
+  #   uid: 'omd-dev-basic-auth'
+  #   type: 'consolmonitoring-thruk-datasource'
+  #   url: 'https://host/omdsite/thruk'
+  #   access: proxy
+  #   isDefault: false
+  #   orgId: 1
+  #   version: 1
+  #   editable: true
+  #   basicAuth: true
+  #   basicAuthUser: omdadmin
+  #   jsonData:
+  #     path: '/resources'
+  #     logPath: './logs/omd-dev-basic-auth.log'
+  #     logLevel: 7
+  #     tlsSkipVerify: true
+  #   secureJsonData:
+  #     basicAuthPassword: omd
+
+  # Example OMD using X-Thruk-Auth-Key Header
+  # - name: 'omd-dev-thruk-auth'
+  #   uid: 'omd-dev-thruk-auth'
+  #   type: 'consolmonitoring-thruk-datasource'
+  #   url: 'https://host/omdsite/thruk'
+  #   access: proxy
+  #   isDefault: false
+  #   orgId: 1
+  #   version: 1
+  #   editable: true
+  #   basicAuth: false
+  #   jsonData:
+  #     path: '/resources'
+  #     logPath: './logs/omd-dev-thruk-auth.log'
+  #     logLevel: 3
+  #     tlsSkipVerify: true
+  #     httpHeaderName1: X-Thruk-Auth-Key
+  #   secureJsonData:
+  #     # superuser api_key or api_key
+  #     httpHeaderValue1: apikeyapikey
+
+  - name: 'omd-dev-basic-auth'
+    uid: 'omd-dev-basic-auth'
+    type: 'consolmonitoring-thruk-datasource'
+    url: 'https://192.168.200.201/dev/thruk'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    basicAuth: true
+    basicAuthUser: omdadmin
+    jsonData:
+      path: '/resources'
+      logPath: './logs/omd-dev-basic-auth.log'
+      logLevel: 7
+      tlsSkipVerify: true
+    secureJsonData:
+      basicAuthPassword: omd
+
+  - name: 'omd-dev-thruk-auth'
+    uid: 'omd-dev-thruk-auth'
+    type: 'consolmonitoring-thruk-datasource'
+    url: 'https://192.168.200.201/dev/thruk'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    basicAuth: false
+    jsonData:
+      path: '/resources'
+      logPath: './logs/omd-dev-thruk-auth.log'
+      logLevel: 3
+      tlsSkipVerify: true
+      httpHeaderName1: X-Thruk-Auth-Key
+    secureJsonData:
+      # superuser api_key or api_key
+      httpHeaderValue1: ffa7105c9bf90d1d6a6cebf93bec98ef049df99aaf637a37aa0b54f381c6cd78_1
