@@ -82,9 +82,9 @@ export class DataSource extends DataSourceWithBackend<ThrukQuery, ThrukDataSourc
     const url = this.replaceVariables(query.table);
     const params: Record<string, string> = {
       table: url,
-      q: encodeURIComponent(this.replaceVariables(query.condition || '')),
-      columns: encodeURIComponent(this.replaceVariables(query.columns.join(','))),
-      limit: encodeURIComponent(this.replaceVariables((query.limit || defaultLimit).toString())),
+      q: this.replaceVariables(query.condition || ''),
+      columns: this.replaceVariables(query.columns.join(',')),
+      limit: this.replaceVariables((query.limit || defaultLimit).toString()),
     };
 
     try {
