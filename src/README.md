@@ -1,50 +1,77 @@
-<!-- This README file is going to be the one displayed on the Grafana.com website for your plugin. Uncomment and replace the content here before publishing.
+# Thruk Datasource with Backend
 
-Remove any remaining comments before publishing as these may be displayed on Grafana.com -->
+A Grafana backend datasource plugin that queries [Thruk's REST API](https://www.thruk.org/documentation/rest.html) to display monitoring data from OMD / Thruk instances in Grafana.
 
-# Thruk-Datasource
-
-<!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
-
-**BEFORE YOU BEGIN**
-- Ensure all links are absolute URLs so that they will work when the README is displayed within Grafana and Grafana.com
-- Be inspired ✨
-  - [grafana-polystat-panel](https://github.com/grafana/grafana-polystat-panel)
-  - [volkovlabs-variable-panel](https://github.com/volkovlabs/volkovlabs-variable-panel)
-
-**ADD SOME BADGES**
-
-Badges convey useful information at a glance for users whether in the Catalog or viewing the source code. You can use the generator on [Shields.io](https://shields.io/badges/dynamic-json-badge) together with the Grafana.com API
-to create dynamic badges that update automatically when you publish a new version to the marketplace.
-
-- For the URL parameter use `https://grafana.com/api/plugins/your-plugin-id`.
-- Example queries:
-  - Downloads: `$.downloads`
-  - Catalog Version: `$.version`
-  - Grafana Dependency: `$.grafanaDependency`
-  - Signature Type: `$.versionSignatureType`
-- Optionally, for the logo parameter use `grafana`.
-
-Full example: ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/grafana-polystat-panel&label=Marketplace&prefix=v&color=F47A20)
-
-Consider other [badges](https://shields.io/badges) as you feel appropriate for your project.
-
-## Overview / Introduction
-Provide one or more paragraphs as an introduction to your plugin to help users understand why they should use it.
-
-Consider including screenshots:
-- in [plugin.json](https://grafana.com/developers/plugin-tools/reference/plugin-json#info) include them as relative links.
-- in the README ensure they are absolute URLs.
+This is the backend-enabled successor of the frontend-only Thruk datasource. It runs the queries against Thruk in a Go backend process, which allows caching, per-user authentication through forwarded cookies and better performance.
 
 ## Requirements
-List any requirements or dependencies they may need to run the plugin.
 
-## Getting Started
-Provide a quick start on how to configure and use the plugin.
+- Grafana 12.4 or newer
+- A Thruk instance with the REST API enabled (`/r/v1/`)
+
+## Installation
+
+Search for `thruk` in the Grafana plugins directory and pick the plugin with backend, or use the grafana-cli:
+
+```
+grafana-cli plugins install consolmonitoring-thruk-datasource
+```
+
+There are two versions that could come up when searching for Thruk, be sure to install the one that has backend components with the id consolmonitoring-thruk-datasource and not sni-thruk-datasource.
+
+## Create Datasource
+
+Add a new datasource and select `consolmonitoring-thruk-datasource`.
+
+- Set the URL to your Thruk instance, ex. for OMD Thruk `https://<host>/<sitename>/thruk`
+- Configure authentication (basic auth or a Thruk API key) as needed
+- For Grafana OMD usage, cookie authentication through existing thruk_auth works as well.
+- Log Level and Log Path can be adjusted in the advanced settings
+
+## Query Types
+
+### Table Queries
+
+Using a table panel, you can display most data from the REST API. Only text, numbers and timestamps can be displayed in a sane way, support for nested data structures is limited.
+
+Select the REST path from where you want to display data, then choose all columns. Aggregation functions can be added as well and always affect the column following afterwards.
+
+### Variable Queries
+
+Thruk's REST API can be used to fill Grafana variables. For example to get all hosts of a certain hostgroup, use this query:
+
+```
+SELECT name FROM hosts WHERE groups >= 'linux'
+```
+
+### Annotation Queries
+
+Annotation queries can be used to add logfile entries into your graphs. Please note that annotations are shared across all graphs in a dashboard. It is important to use at least a time filter.
+
+### Timeseries based panels
+
+Although Thruk is not a time series database and usually only returns table data, some queries can be converted to fake time series if the panel cannot handle table data. This is done according to the preferred visualization type that the panel recommends.
+
+You can either use queries which have 2 columns (name, value) or queries which only return a single result row with numeric values only.
+
+## Using Variables
+
+Dashboard variables can be used in almost all queries. For example if you define a dashboard variable named `host` you can then use `$host` in your queries.
+
+There is a special syntax for a time filter: `field = $time` which will be replaced by `(field >= starttime AND field <= endtime)`. This can be used to reduce results to the dashboard's timeframe:
+
+```
+SELECT time, message FROM /alerts WHERE host_name = "$host" AND time = $time
+```
 
 ## Documentation
-If your project has dedicated documentation available for users, provide links here. For help in following Grafana's style recommendations for technical documentation, refer to our [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/).
 
-## Contributing
-Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
--->
+More information about backend plugins is available at the [Grafana plugin tools](https://grafana.com/developers/plugin-tools/key-concepts/backend-plugins/).
+
+## Development
+
+The source and development instructions live in the [GitHub repository](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource).
+
+## Changelog
+
+See [CHANGELOG.md](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/blob/master/CHANGELOG.md).
