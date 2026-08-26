@@ -1,5 +1,5 @@
 import { defaults, debounce } from 'lodash';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
   SegmentSection,
@@ -21,7 +21,12 @@ export const QueryEditor = (props: Props) => {
   const { onRunQuery } = props;
   const debouncedRunQuery = React.useMemo(() => debounce(onRunQuery, 500), [onRunQuery]);
 
-  const queryDefaulted = defaults({}, props.query, defaultQuery);
+  useEffect(() => () => debouncedRunQuery.cancel(), [debouncedRunQuery]);
+
+  const queryDefaulted = {
+    ...defaults({}, props.query, defaultQuery),
+    columns: [...(props.query.columns ?? defaultQuery.columns ?? ['*'])],
+  };
 
   const tablesCache = useRef<string[] | null>(null);
   const columnsCache = useRef<{ url: string; columns: string[] } | null>(null);
