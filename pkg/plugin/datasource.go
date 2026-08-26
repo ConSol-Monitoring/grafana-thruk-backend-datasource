@@ -292,6 +292,9 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 
 		table = strings.TrimPrefix(table, "/")
+		if err := validateAPIPath(table); err != nil {
+			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+		}
 
 		thrukPath = "/r/v1/" + table
 
@@ -326,6 +329,9 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 
 		table = strings.TrimPrefix(table, "/")
+		if err := validateAPIPath(table); err != nil {
+			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+		}
 
 		thrukPath = "/r/v1/" + table + "?columns=" + url.QueryEscape(columns) +
 			"&q=" + url.QueryEscape(queriedTable) +
@@ -333,7 +339,11 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 
 		extraHeaders = map[string]string{"X-Thruk-Output-Metadata-Only": "true"}
 	default:
-		thrukPath = "/r/v1/" + strings.TrimPrefix(req.Path, "/")
+		resourcePath := strings.TrimPrefix(req.Path, "/")
+		if err := validateAPIPath(resourcePath); err != nil {
+			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+		}
+		thrukPath = "/r/v1/" + resourcePath
 	}
 
 	thrukURL := d.url + thrukPath

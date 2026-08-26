@@ -13,6 +13,24 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
+func validateAPIPath(value string) error {
+	if value == "" || strings.ContainsAny(value, "?#\x00\r\n") {
+		return fmt.Errorf("invalid API path")
+	}
+
+	decoded, err := url.PathUnescape(value)
+	if err != nil || strings.ContainsAny(decoded, "\x00\r\n") {
+		return fmt.Errorf("invalid API path")
+	}
+
+	clean := path.Clean("/" + decoded)
+	if clean == "/.." || strings.HasPrefix(clean, "/../") {
+		return fmt.Errorf("API path must not escape the Thruk API")
+	}
+
+	return nil
+}
+
 // cookieNames extracts the cookie names from the raw values of a Cookie header.
 // It never returns the cookie values themselves, so it is safe to log.
 func cookieNames(cookieHeaderValues []string) []string {
