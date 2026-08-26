@@ -101,6 +101,8 @@ func anyToString(value any) string {
 // To get all possible types from Thruk, run this command in Thruk sources /src/thruk/lib/Thruk/Controller/Rest/V1
 // grep -nrw '"type":' docs.pm > types.txt .
 // grep -nrw '"type":' livestatus_docs.pm > types.txt .
+//
+//nolint:nonamedreturns // naming helps to understand what it is
 func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (fieldType data.FieldType, specified bool, specifiedType string) {
 	if columnMetadata, ok := columnMetadatas[columnName]; ok {
 		// if the columnMetadata has a saved type, use it

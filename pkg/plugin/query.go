@@ -437,6 +437,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 	}
 }
 
+//nolint:nonamedreturns // naming helps to understand what it is
 func determineTableFieldType(thrukResp *ThrukWrappedJSONResponse, columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (
 	fieldType data.FieldType, specifiedType string, inferred bool) {
 	inferred = true
