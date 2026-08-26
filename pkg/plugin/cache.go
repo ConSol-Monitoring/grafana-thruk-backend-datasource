@@ -136,16 +136,16 @@ func findCachePolicy(qm *QueryModel, headers *map[string][]string) *CachePolicy 
 			continue
 		}
 
-		if policy.filterToHeaders != nil &&
-			headers != nil &&
-			len(*headers) > 0 &&
-			!slices.ContainsFunc(*policy.filterToHeaders,
-				func(e string) bool {
-					_, ok := (*headers)[e]
+		if policy.filterToHeaders != nil {
+			if headers == nil || len(*headers) == 0 ||
+				!slices.ContainsFunc(*policy.filterToHeaders,
+					func(e string) bool {
+						_, ok := (*headers)[e]
 
-					return ok
-				}) {
-			continue
+						return ok
+					}) {
+				continue
+			}
 		}
 
 		return &policy
