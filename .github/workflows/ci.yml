@@ -240,8 +240,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # required for playwright-gh-pages
-          persist-credentials: true
+          # The action checks out gh-pages internally and gets its token via the
+          # github-token input; persisting credentials here leaves an includeIf.gitdir
+          # entry that clashes with the action's internal checkout (Duplicate header).
+          persist-credentials: false
       - name: Publish report
         uses: grafana/plugin-actions/playwright-gh-pages/deploy-report-pages@deploy-report-pages/v1.1.0
         with:
