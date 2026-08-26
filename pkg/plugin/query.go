@@ -136,6 +136,9 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
+	if err := validateAPIPath(queryModel.Table); err != nil {
+		return backend.ErrDataResponse(backend.StatusBadRequest, err.Error())
+	}
 
 	// merge the frontend-injected dashboard/panel context into a per-query copy
 	queryMetadata := buildQueryMetadataFromContext(ctx, backendReq)
