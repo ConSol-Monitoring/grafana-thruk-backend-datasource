@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -100,26 +101,28 @@ func anyToString(value any) string {
 // To get all possible types from Thruk, run this command in Thruk sources /src/thruk/lib/Thruk/Controller/Rest/V1
 // grep -nrw '"type":' docs.pm > types.txt .
 // grep -nrw '"type":' livestatus_docs.pm > types.txt .
-func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (data.FieldType, string) {
+func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (fieldType data.FieldType, specified bool, specifiedType string) {
 	if columnMetadata, ok := columnMetadatas[columnName]; ok {
 		// if the columnMetadata has a saved type, use it
 		if columnMetadata.GrafanaDataType != data.FieldTypeUnknown {
-			return columnMetadata.GrafanaDataType, columnMetadata.Type
+			return columnMetadata.GrafanaDataType, false, columnMetadata.Type
 		}
 
 		switch columnMetadata.Type {
 		case "number":
-			return data.FieldTypeFloat64, columnMetadata.Type
+			return data.FieldTypeFloat64, true, columnMetadata.Type
 		case "time":
-			return data.FieldTypeTime, columnMetadata.Type
+			return data.FieldTypeTime, true, columnMetadata.Type
 		case "bool", "boolean":
-			return data.FieldTypeBool, columnMetadata.Type
+			return data.FieldTypeBool, true, columnMetadata.Type
 		case "string":
-			return data.FieldTypeString, columnMetadata.Type
+			return data.FieldTypeString, true, columnMetadata.Type
 		case "array_of_strings":
-			return data.FieldTypeString, columnMetadata.Type
+			return data.FieldTypeString, true, columnMetadata.Type
+		case "":
+			return data.FieldTypeUnknown, false, ""
 		default:
-			return data.FieldTypeUnknown, "unknown"
+			return data.FieldTypeUnknown, true, columnMetadata.Type
 		}
 	}
 
@@ -127,14 +130,46 @@ func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJS
 	if strings.HasPrefix(columnName, "last_") || strings.HasPrefix(columnName, "next_") ||
 		strings.HasPrefix(columnName, "start_") || strings.HasPrefix(columnName, "end_") ||
 		strings.HasPrefix(columnName, "time") {
-		return data.FieldTypeTime, ""
+		return data.FieldTypeTime, false, ""
 	}
 
 	if strings.HasPrefix(columnName, "time_") {
-		return data.FieldTypeFloat64, ""
+		return data.FieldTypeFloat64, false, ""
 	}
 
-	return data.FieldTypeString, ""
+	return data.FieldTypeUnknown, false, ""
+}
+
+// ErrNoRowsInResponseData error type.
+var ErrNoRowsInResponseData = errors.New("there is no rows in response to infer from")
+
+// ErrResponseDataDoesNotHaveColumn error type.
+var ErrResponseDataDoesNotHaveColumn = errors.New("response data does not have column")
+
+// inferUnspecifiedFieldType function determines the type to use if metadata does not contain anything regarding the type
+// this is done by checking if the first value of that column can be parsed to float64, and if not it falls back to string.
+func inferUnspecifiedFieldType(thrukResp *ThrukWrappedJSONResponse, columnName string) (data.FieldType, error) {
+	if thrukResp == nil {
+		return data.FieldTypeString, fmt.Errorf("%w, argument: thrukResp", ErrArgumentNil)
+	}
+
+	if len(thrukResp.Data) == 0 {
+		return data.FieldTypeString, ErrNoRowsInResponseData
+	}
+
+	val, ok := thrukResp.Data[0][columnName]
+
+	if !ok {
+		return data.FieldTypeString, fmt.Errorf("%w , column: %s", ErrResponseDataDoesNotHaveColumn, columnName)
+	}
+
+	_, toFloat64Ok := val.(float64)
+
+	if toFloat64Ok {
+		return data.FieldTypeFloat64, nil
+	}
+
+	return data.FieldTypeString, nil
 }
 
 // Parses the optional units added in Thruk function _get_columns_meta_for_path on API calls.

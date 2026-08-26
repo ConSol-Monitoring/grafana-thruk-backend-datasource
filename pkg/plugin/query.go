@@ -338,35 +338,15 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 	for _, col := range columns {
 		processUnitType(col, columnMetadatas)
 
-		unknownFieldType := false
-
-		fieldType, metadataWritenType := inferFieldType(col, columnMetadatas)
-		if fieldType == data.FieldTypeUnknown {
-			unknownFieldType = true
-			fieldType = data.FieldTypeString
-		}
+		fieldType, specifiedType, inferred := determineTableFieldType(thrukResp, col, columnMetadatas)
 
 		field := data.NewFieldFromFieldType(fieldType, 0)
 		field.Name = col
 
-		logger.Debugf("building column: %s, fieldType is unknown: %t, final fieldType: %s", col, unknownFieldType, FieldTypeToString(fieldType))
+		logger.Debugf("building column: %s, fieldType: %q, specifiedType: %q, inferred: %t", col, FieldTypeToString(fieldType), specifiedType, inferred)
 
 		for _, row := range thrukResp.Data {
 			val := row[col]
-			// d.logger.Printf("[Column: %s] val: %v", col, val)
-
-			// unknown field types default to strings with white background
-			if unknownFieldType {
-				field.Append(anyToString(val))
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "string",
-					Color:       map[string]any{"mode": "fixed", "fixedColor": "white"},
-					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-				}
-
-				continue
-			}
 
 			//nolint:exhaustive // thruk only returns some of these types
 			switch fieldType {
@@ -403,7 +383,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 					Custom:      map[string]any{"cellOptions": map[string]any{"mode": "thresholds", "type": "color-background"}},
 				}
 			case data.FieldTypeString:
-				switch metadataWritenType {
+				switch specifiedType {
 				// array of strings
 				// gets a different color, fuchsia
 				case "array_of_strings":
@@ -432,7 +412,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 						Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
 					}
 				}
-
+			// unknown ones are selected as strings
 			default:
 				field.Append(anyToString(val))
 				//nolint: exhaustruct_v5
@@ -455,6 +435,27 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 		Status: backend.StatusOK,
 		Frames: data.Frames{frame},
 	}
+}
+
+func determineTableFieldType(thrukResp *ThrukWrappedJSONResponse, columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (
+	fieldType data.FieldType, specifiedType string, inferred bool) {
+	inferred = true
+
+	fieldType, specified, specifiedType := inferFieldType(columnName, columnMetadatas)
+
+	if fieldType != data.FieldTypeUnknown {
+		return fieldType, specifiedType, false
+	}
+
+	if !specified {
+		inferredUnspecifiedType, err := inferUnspecifiedFieldType(thrukResp, columnName)
+		if err == nil {
+			fieldType = inferredUnspecifiedType
+			inferred = true
+		}
+	}
+
+	return fieldType, specifiedType, inferred
 }
 
 // buildTimeseriesFrames converts tabular Thruk data into Grafana time series frames.
