@@ -1290,7 +1290,7 @@
             "h": 8,
             "w": 9,
             "x": 0,
-            "y": 82
+            "y": 74
           },
           "id": 10,
           "options": {
@@ -1366,7 +1366,7 @@
             "h": 8,
             "w": 9,
             "x": 9,
-            "y": 82
+            "y": 74
           },
           "id": 9,
           "options": {
@@ -1401,7 +1401,7 @@
       "type": "row"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1409,610 +1409,88 @@
         "y": 74
       },
       "id": 18,
-      "panels": [
-        {
-          "datasource": {
-            "type": "consolmonitoring-thruk-datasource",
-            "uid": "demo-thruk-org"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "footer": {
-                  "reducers": []
-                },
-                "hideFrom": {
-                  "viz": false
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "max": 10,
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 10,
-            "w": 9,
-            "x": 0,
-            "y": 83
-          },
-          "id": 13,
-          "options": {
-            "cellHeight": "sm",
-            "frameIndex": 0,
-            "showHeader": true
-          },
-          "pluginVersion": "12.4.0",
-          "targets": [
-            {
-              "columns": [
-                "num_services_crit",
-                "num_services_ok",
-                "num_services_warn",
-                "num_services_unknown"
-              ],
-              "condition": "name=\"naemon0\"",
-              "datasource": {
-                "type": "consolmonitoring-thruk-datasource",
-                "uid": "demo-thruk-org"
-              },
-              "limit": 1,
-              "refId": "A",
-              "table": "/hosts",
-              "type": {
-                "label": "Timeseries",
-                "value": "graph"
-              }
-            }
-          ],
-          "title": "/hosts name=naemon0 Timeseries",
-          "type": "table"
-        }
-      ],
+      "panels": [],
       "title": "Timeseries Queries",
       "type": "row"
     },
     {
-      "collapsed": true,
+      "datasource": {
+        "type": "consolmonitoring-thruk-datasource",
+        "uid": "demo-thruk-org"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "max": 10,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
-        "h": 1,
-        "w": 24,
+        "h": 10,
+        "w": 9,
         "x": 0,
         "y": 75
       },
-      "id": 17,
-      "panels": [
-        {
-          "fieldConfig": {
-            "defaults": {},
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 18,
-            "w": 12,
-            "x": 0,
-            "y": 84
-          },
-          "id": 20,
-          "options": {
-            "code": {
-              "language": "plaintext",
-              "showLineNumbers": false,
-              "showMiniMap": false
-            },
-            "content": "# Type parsing\n\nThe returned data should have columns of integer types for visualizations to work\n\nThis is either done by manually specifying their types in the backend:\n\n```go\n// if we know the table used in query model, we can iterate through the columns and add their backend types by hand\n// this is a band-aid fix. it would be better if thruk reported everything correctly in its metada\n// sometimes it does not add types to stuff like num_services , leading them to be parsed as strings\n// that is our fallback defaut type\nfunc addKnownGrafanaDataTypes(qm *queryModel, meta *thrukMetadata) {\n\n\tfindAndChangeType := func(meta *thrukMetadata, name string, t data.FieldType) {\n\t\tfor i := range meta.Columns {\n\t\t\tif meta.Columns[i].Name == name {\n\t\t\t\tmeta.Columns[i].GrafanaDataType = t\n\t\t\t}\n\t\t}\n\t}\n\n\tswitch qm.Table {\n\tcase \"/services/totals\":\n\t\tfindAndChangeType(meta, \"ok\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"warning\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"unknown\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"critical\", data.FieldTypeInt64)\n\t}\n}\n```\n\nOr have Thruk report them properly in its result metadata.\n```json\n{\n   \"data\" : {\n      \"critical\" : 1,\n      \"critical_and_unhandled\" : 1,\n      \"ok\" : 7,\n      \"pending\" : 0,\n      \"total\" : 8,\n      \"unknown\" : 0,\n      \"unknown_and_unhandled\" : 0,\n      \"warning\" : 0,\n      \"warning_and_unhandled\" : 0\n   },\n   \"meta\" : {\n      \"columns\" : [\n         {\n            \"name\" : \"critical\"\n         },\n         {\n            \"name\" : \"critical_and_unhandled\"\n         },\n         {\n            \"name\" : \"ok\"\n         },\n         {\n            \"name\" : \"pending\"\n         },\n         {\n            \"name\" : \"total\"\n         },\n         {\n            \"name\" : \"unknown\"\n         },\n         {\n            \"name\" : \"unknown_and_unhandled\"\n         },\n         {\n            \"name\" : \"warning\"\n         },\n         {\n            \"name\" : \"warning_and_unhandled\"\n         }\n      ]\n   }\n}\n```\n\nThat might look something like this:\n```json\n{\n  \"name\" : \"unkonwn\",\n  \"type\" : \"number\"\n},\n```",
-            "mode": "markdown"
-          },
-          "pluginVersion": "12.4.0",
-          "title": "",
-          "type": "text"
-        },
-        {
-          "datasource": {
-            "type": "consolmonitoring-thruk-datasource",
-            "uid": "demo-thruk-org"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              },
-              "mappings": []
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "ok"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "warning"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "unknown"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "orange",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "critical"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 5,
-            "x": 12,
-            "y": 84
-          },
-          "id": 5,
-          "options": {
-            "displayLabels": [
-              "name",
-              "value"
-            ],
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true,
-              "values": [
-                "value"
-              ]
-            },
-            "pieType": "pie",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": true
-            },
-            "sort": "desc",
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.4.0",
-          "targets": [
-            {
-              "columns": [
-                "ok",
-                "warning",
-                "unknown",
-                "critical"
-              ],
-              "condition": "",
-              "refId": "A",
-              "table": "/services/totals",
-              "type": "table"
-            }
-          ],
-          "title": "Pie Chart on /services/totals",
-          "type": "piechart"
-        },
-        {
-          "datasource": {
-            "type": "consolmonitoring-thruk-datasource",
-            "uid": "demo-thruk-org"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              },
-              "mappings": []
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "ok"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "warning"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "unknown"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "orange",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "critical"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 5,
-            "x": 17,
-            "y": 84
-          },
-          "id": 14,
-          "options": {
-            "displayLabels": [
-              "name",
-              "value"
-            ],
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true,
-              "values": [
-                "value"
-              ]
-            },
-            "pieType": "pie",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": true
-            },
-            "sort": "desc",
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.4.0",
-          "targets": [
-            {
-              "columns": [
-                "down",
-                "up",
-                "pending",
-                "up"
-              ],
-              "condition": "",
-              "refId": "A",
-              "table": "/hosts/totals",
-              "type": "table"
-            }
-          ],
-          "title": "Pie Chart on /hosts/totals",
-          "type": "piechart"
-        },
-        {
-          "datasource": {
-            "type": "consolmonitoring-thruk-datasource",
-            "uid": "demo-thruk-org"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              },
-              "mappings": []
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "ok"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "warning"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "unknown"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "orange",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "critical"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 5,
-            "x": 12,
-            "y": 100
-          },
-          "id": 29,
-          "options": {
-            "displayLabels": [
-              "name",
-              "value"
-            ],
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true,
-              "values": [
-                "value"
-              ]
-            },
-            "pieType": "pie",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": true
-            },
-            "sort": "desc",
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.4.0",
-          "targets": [
-            {
-              "columns": [
-                "*"
-              ],
-              "condition": "",
-              "refId": "A",
-              "table": "/contacts/totals",
-              "type": "table"
-            }
-          ],
-          "title": "Pie Chart on /contacts/totals",
-          "type": "piechart"
-        }
-      ],
-      "title": "Aggegator Endpoints",
-      "type": "row"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 76
+      "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "frameIndex": 0,
+        "showHeader": true
       },
-      "id": 19,
-      "panels": [
+      "pluginVersion": "12.4.0",
+      "targets": [
         {
+          "columns": [
+            "num_services_crit",
+            "num_services_ok",
+            "num_services_warn",
+            "num_services_unknown"
+          ],
+          "condition": "name=\"naemon0\"",
           "datasource": {
             "type": "consolmonitoring-thruk-datasource",
             "uid": "demo-thruk-org"
           },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 3,
-            "x": 0,
-            "y": 129
-          },
-          "id": 8,
-          "options": {
-            "colorMode": "none",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [],
-              "fields": "/.*/",
-              "values": true
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.4.0",
-          "targets": [
-            {
-              "columns": [
-                "count()"
-              ],
-              "condition": "",
-              "datasource": {
-                "type": "consolmonitoring-thruk-datasource",
-                "uid": "demo-thruk-org"
-              },
-              "refId": "A",
-              "table": "/hosts",
-              "type": "table"
-            }
-          ],
-          "title": "/hosts count()",
-          "type": "stat"
+          "limit": 1,
+          "refId": "A",
+          "table": "/hosts",
+          "type": {
+            "label": "Timeseries",
+            "value": "graph"
+          }
         }
       ],
-      "title": "Thruk API Functions",
-      "type": "row"
+      "title": "/hosts name=naemon0 Timeseries",
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -2020,7 +1498,526 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 85
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Aggegator Endpoints",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 12,
+        "x": 0,
+        "y": 86
+      },
+      "id": 20,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "# Type parsing\n\nThe returned data should have columns of integer types for some visualizations to work properly.\n\nPie chart is one of them.\n\nThe backend tries to read the metadata from Thruk, and if it does not exist, it tries to infer the type.\n\nThe function query.go:determineTableFieldType determines the type\n\nIf first data instance is parsable as float64, the column is taken as float64 column. Otherwise it defaults to string.\n\n\n### Thruk API Metadata\n\nHere is the return value of the API call.\n\nhttps://demo.thruk.org/demo/thruk/r/v1/services/totals\n\nWithout metadata:\n```json\n{\n   \"critical\" : 0,\n   \"critical_and_unhandled\" : 0,\n   \"ok\" : 7,\n   \"pending\" : 0,\n   \"total\" : 8,\n   \"unknown\" : 0,\n   \"unknown_and_unhandled\" : 0,\n   \"warning\" : 1,\n   \"warning_and_unhandled\" : 1\n}\n```\n\nOr with metadata:\n\n```json\n{\n   \"data\" : {\n      \"critical\" : 1,\n      \"critical_and_unhandled\" : 1,\n      \"ok\" : 7,\n      \"pending\" : 0,\n      \"total\" : 8,\n      \"unknown\" : 0,\n      \"unknown_and_unhandled\" : 0,\n      \"warning\" : 0,\n      \"warning_and_unhandled\" : 0\n   },\n   \"meta\" : {\n      \"columns\" : [\n         {\n            \"name\" : \"critical\"\n         },\n         {\n            \"name\" : \"critical_and_unhandled\"\n         },\n         {\n            \"name\" : \"ok\"\n         },\n         {\n            \"name\" : \"pending\"\n         },\n         {\n            \"name\" : \"total\"\n         },\n         {\n            \"name\" : \"unknown\"\n         },\n         {\n            \"name\" : \"unknown_and_unhandled\"\n         },\n         {\n            \"name\" : \"warning\"\n         },\n         {\n            \"name\" : \"warning_and_unhandled\"\n         }\n      ]\n   }\n}\n```\n\nThere is a PR open in Thruk to add type metadata to most of the API calls:\n\nhttps://github.com/sni/thruk/pull/1507\n\n### Force adding the known types\n\nAlternatively, the addKnownGrafanaDataTypes can add these types.\n\nThe function is defined in the code, but it does nothing. It will be removed once Thruk API changes are made.\n\n```go\nfunc addKnownGrafanaDataTypes(qm *queryModel, meta *thrukMetadata) {\n\n\tfindAndChangeType := func(meta *thrukMetadata, name string, t data.FieldType) {\n\t\tfor i := range meta.Columns {\n\t\t\tif meta.Columns[i].Name == name {\n\t\t\t\tmeta.Columns[i].GrafanaDataType = t\n\t\t\t}\n\t\t}\n\t}\n\n\tswitch qm.Table {\n\tcase \"/services/totals\":\n\t\tfindAndChangeType(meta, \"ok\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"warning\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"unknown\", data.FieldTypeInt64)\n\t\tfindAndChangeType(meta, \"critical\", data.FieldTypeInt64)\n\t}\n}\n```",
+        "mode": "markdown"
+      },
+      "pluginVersion": "12.4.0",
+      "title": "",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "consolmonitoring-thruk-datasource",
+        "uid": "demo-thruk-org"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ok"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 12,
+        "y": 86
+      },
+      "id": 5,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "columns": [
+            "ok",
+            "warning",
+            "unknown",
+            "critical"
+          ],
+          "condition": "",
+          "refId": "A",
+          "table": "/services/totals",
+          "type": "table"
+        }
+      ],
+      "title": "Pie Chart on /services/totals",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "consolmonitoring-thruk-datasource",
+        "uid": "demo-thruk-org"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ok"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 17,
+        "y": 86
+      },
+      "id": 14,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "columns": [
+            "down",
+            "up",
+            "pending",
+            "up"
+          ],
+          "condition": "",
+          "refId": "A",
+          "table": "/hosts/totals",
+          "type": "table"
+        }
+      ],
+      "title": "Pie Chart on /hosts/totals",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "consolmonitoring-thruk-datasource",
+        "uid": "demo-thruk-org"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ok"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 12,
+        "y": 94
+      },
+      "id": 29,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "columns": [
+            "*"
+          ],
+          "condition": "",
+          "refId": "A",
+          "table": "/contacts/totals",
+          "type": "table"
+        }
+      ],
+      "title": "Pie Chart on /contacts/totals",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 104
+      },
+      "id": 19,
+      "panels": [],
+      "title": "Thruk API Functions",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "consolmonitoring-thruk-datasource",
+        "uid": "demo-thruk-org"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 105
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "columns": [
+            "count()"
+          ],
+          "condition": "",
+          "datasource": {
+            "type": "consolmonitoring-thruk-datasource",
+            "uid": "demo-thruk-org"
+          },
+          "refId": "A",
+          "table": "/hosts",
+          "type": "table"
+        }
+      ],
+      "title": "/hosts count()",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 109
       },
       "id": 30,
       "panels": [],
@@ -2058,7 +2055,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 78
+        "y": 110
       },
       "id": 31,
       "options": {
