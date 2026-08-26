@@ -6,28 +6,28 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
-// This type saves a wrapped_json type of Thruk response
-// { "data": [] , "meta": [] }
-type ThrukWrappedJsonResponse struct {
+// ThrukWrappedJSONResponse struct saves a wrapped_json type of Thruk response
+// JSON looks like this: { "data": [] , "meta": [] } .
+type ThrukWrappedJSONResponse struct {
 	Data []map[string]any              `json:"data"`
-	Meta *ThrukWrappedJsonResponseMeta `json:"meta"`
+	Meta *ThrukWrappedJSONResponseMeta `json:"meta"`
 }
 
-// This type saves "meta" object in wrapped_json type of Thruk response
+// ThrukWrappedJSONResponseMeta struct saves "meta" object in wrapped_json type of Thruk response
 // RequestDuration: is added later, not present in Thruk Response
-// ParseDuration: is added later, not present in Thruk response
-type ThrukWrappedJsonResponseMeta struct {
-	Columns         []ThrukWrappedJsonResponseMetaColumn `json:"columns"`
+// ParseDuration: is added later, not present in Thruk response.
+type ThrukWrappedJSONResponseMeta struct {
+	Columns         []ThrukWrappedJSONResponseMetaColumn `json:"columns"`
 	RequestDuration time.Duration                        `json:"requestDuration"`
 	ParseDuration   time.Duration                        `json:"parseDuration"`
 }
 
-// This type saves elements of "meta"."columns" array in wrapped_json type of Thruk responses
+// ThrukWrappedJSONResponseMetaColumn struct saves elements of "meta"."columns" array in wrapped_json type of Thruk responses
 // Most of the colum metadata only have "name"
 // Some might have "type" as well, taking values like: "time"
 // Some might have "config" which is a nested object like: { "unit" : "s"},
-// GrafanaDataType: added later, not present in Thruk Response. It serves to save the parsed Grafana SDK type in the same struct
-type ThrukWrappedJsonResponseMetaColumn struct {
+// GrafanaDataType: added later, not present in Thruk Response. It serves to save the parsed Grafana SDK type in the same struct.
+type ThrukWrappedJSONResponseMetaColumn struct {
 	Name            string         `json:"name"`
 	Type            string         `json:"type"`
 	GrafanaDataType data.FieldType `json:"grafanaDataType"`
@@ -67,17 +67,17 @@ const (
 	EndpointListCommentByID
 	// EndpointRunConfigCheck POST /config/check Returns result from config check. This check does require changes to be saved to disk before running the check.
 	EndpointRunConfigCheck
-	// EndpointGetConfigDiff GET /config/diff
+	// EndpointGetConfigDiff GET /config/diff .  Returns differences between filesystem and stashed config changes.
 	EndpointGetConfigDiff
 	// EndpointDiscardConfigChanges POST /config/discard Reverts stashed configuration changes.
 	EndpointDiscardConfigChanges
-	// EndpointListConfigFiles GET /config/files returns all config files
+	// EndpointListConfigFiles GET /config/files returns all config files.
 	EndpointListConfigFiles
 	// EndpointListFullObjects GET /config/fullobjects Returns list of all objects with templates expanded.
 	EndpointListFullObjects
 	// EndpointListObjects GET /config/objects Returns list of all objects with their raw config.
 	EndpointListObjects
-	// EndpointCreateObject POST /config/objects Create new object. Besides the actual object config, requires
+	// EndpointCreateObject POST /config/objects Create new object. Besides the actual object config, requires.
 	EndpointCreateObject
 	// EndpointPatchObjects PATCH /config/objects Change attributes for all matching objects.
 	EndpointPatchObjects
@@ -121,9 +121,13 @@ const (
 	EndpointListContacts
 	// EndpointListContactByName GET /contacts/<name> lists contacts for given name.
 	EndpointListContactByName
-	// EndpointChangeContactHostNotificationTimeperiod POST /contacts/<name>/cmd/change_contact_host_notification_timeperiod Changes the host notification timeperiod for a particular contact to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod that is to be used as the contact's host notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeContactHostNotificationTimeperiod POST /contacts/<name>/cmd/change_contact_host_notification_timeperiod
+	// Changes the host notification timeperiod for a particular contact to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name
+	// of the timeperiod that is to be used as the contact's host notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
 	EndpointChangeContactHostNotificationTimeperiod
-	// EndpointChangeContactSVCNotificationTimeperiod POST /contacts/<name>/cmd/change_contact_svc_notification_timeperiod Changes the service notification timeperiod for a particular contact to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod that is to be used as the contact's service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeContactSVCNotificationTimeperiod POST /contacts/<name>/cmd/change_contact_svc_notification_timeperiod
+	// Changes the service notification timeperiod for a particular contact to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the
+	// short name of the timeperiod that is to be used as the contact's service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
 	EndpointChangeContactSVCNotificationTimeperiod
 	// EndpointChangeCustomContactVar POST /contacts/<name>/cmd/change_custom_contact_var Changes the value of a custom contact variable.
 	EndpointChangeCustomContactVar
@@ -215,7 +219,9 @@ const (
 	EndpointChangeHostCheckTimeperiod
 	// EndpointChangeHostModattr POST /hosts/<name>/cmd/change_host_modattr Sends the CHANGE_HOST_MODATTR command.
 	EndpointChangeHostModattr
-	// EndpointChangeHostNotificationTimeperiod POST /hosts/<name>/cmd/change_host_notification_timeperiod Changes the host notification timeperiod to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod that is to be used as the service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeHostNotificationTimeperiod POST /hosts/<name>/cmd/change_host_notification_timeperiod
+	// Changes the host notification timeperiod to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod that
+	// is to be used as the service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
 	EndpointChangeHostNotificationTimeperiod
 	// EndpointChangeMaxHostCheckAttempts POST /hosts/<name>/cmd/change_max_host_check_attempts Changes the maximum number of check attempts (retries) for a particular host.
 	EndpointChangeMaxHostCheckAttempts
@@ -293,7 +299,10 @@ const (
 	EndpointScheduleHostSVCdowntime
 	// EndpointSendCustomHostNotification POST /hosts/<name>/cmd/send_custom_host_notification Sends the SEND_CUSTOM_HOST_NOTIFICATION command.
 	EndpointSendCustomHostNotification
-	// EndpointSetHostNotificationNumber POST /hosts/<name>/cmd/set_host_notification_number Sets the current notification number for a particular host. A value of 0 indicates that no notification has yet been sent for the current host problem. Useful for forcing an escalation (based on notification number) or replicating notification information in redundant monitoring environments. Notification numbers greater than zero have no noticeable affect on the notification process if the host is currently in an UP state.
+	// EndpointSetHostNotificationNumber POST /hosts/<name>/cmd/set_host_notification_number
+	// Sets the current notification number for a particular host. A value of 0 indicates that no notification has yet been sent for the current host problem. Useful for forcing an escalation
+	// (based on notification number) or replicating notification information in redundant monitoring environments. Notification numbers greater than zero have no noticeable affect on the
+	// notification process if the host is currently in an UP state.
 	EndpointSetHostNotificationNumber
 	// EndpointStartObsessingOverHost POST /hosts/<name>/cmd/start_obsessing_over_host Sends the START_OBSESSING_OVER_HOST command.
 	EndpointStartObsessingOverHost
@@ -343,11 +352,14 @@ const (
 	EndpointGetServiceGroupAvailability
 	// EndpointDisableServiceGroupHostChecks POST /servicegroups/<name>/cmd/disable_servicegroup_host_checks Sends the DISABLE_SERVICEGROUP_HOST_CHECKS command.
 	EndpointDisableServiceGroupHostChecks
-	// EndpointDisableServiceGroupHostNotifications POST /servicegroups/<name>/cmd/disable_servicegroup_host_notifications Sends the DISABLE_SERVICEGROUP_HOST_NOTIFICATIONS command.
+	// EndpointDisableServiceGroupHostNotifications POST /servicegroups/<name>/cmd/disable_servicegroup_host_notifications
+	// Sends the DISABLE_SERVICEGROUP_HOST_NOTIFICATIONS command.
 	EndpointDisableServiceGroupHostNotifications
-	// EndpointDisableServiceGroupPassiveHostChecks POST /servicegroups/<name>/cmd/disable_servicegroup_passive_host_checks Disables the acceptance and processing of passive checks for all hosts that have services that are members of a particular service group.
+	// EndpointDisableServiceGroupPassiveHostChecks POST /servicegroups/<name>/cmd/disable_servicegroup_passive_host_checks
+	// Disables the acceptance and processing of passive checks for all hosts that have services that are members of a particular service group.
 	EndpointDisableServiceGroupPassiveHostChecks
-	// EndpointDisableServiceGroupPassiveSVCChecks POST /servicegroups/<name>/cmd/disable_servicegroup_passive_svc_checks Disables the acceptance and processing of passive checks for all services in a particular servicegroup.
+	// EndpointDisableServiceGroupPassiveSVCChecks POST /servicegroups/<name>/cmd/disable_servicegroup_passive_svc_checks
+	// Disables the acceptance and processing of passive checks for all services in a particular servicegroup.
 	EndpointDisableServiceGroupPassiveSVCChecks
 	// EndpointDisableServiceGroupSVCChecks POST /servicegroups/<name>/cmd/disable_servicegroup_svc_checks Sends the DISABLE_SERVICEGROUP_SVC_CHECKS command.
 	EndpointDisableServiceGroupSVCChecks
@@ -357,9 +369,11 @@ const (
 	EndpointEnableServiceGroupHostChecks
 	// EndpointEnableServiceGroupHostNotifications POST /servicegroups/<name>/cmd/enable_servicegroup_host_notifications Sends the ENABLE_SERVICEGROUP_HOST_NOTIFICATIONS command.
 	EndpointEnableServiceGroupHostNotifications
-	// EndpointEnableServiceGroupPassiveHostChecks POST /servicegroups/<name>/cmd/enable_servicegroup_passive_host_checks Enables the acceptance and processing of passive checks for all hosts that have services that are members of a particular service group.
+	// EndpointEnableServiceGroupPassiveHostChecks POST /servicegroups/<name>/cmd/enable_servicegroup_passive_host_checks
+	// Enables the acceptance and processing of passive checks for all hosts that have services that are members of a particular service group.
 	EndpointEnableServiceGroupPassiveHostChecks
-	// EndpointEnableServiceGroupPassiveSVCChecks POST /servicegroups/<name>/cmd/enable_servicegroup_passive_svc_checks Enables the acceptance and processing of passive checks for all services in a particular servicegroup.
+	// EndpointEnableServiceGroupPassiveSVCChecks POST /servicegroups/<name>/cmd/enable_servicegroup_passive_svc_checks
+	// Enables the acceptance and processing of passive checks for all services in a particular servicegroup.
 	EndpointEnableServiceGroupPassiveSVCChecks
 	// EndpointEnableServiceGroupSVCChecks POST /servicegroups/<name>/cmd/enable_servicegroup_svc_checks Sends the ENABLE_SERVICEGROUP_SVC_CHECKS command.
 	EndpointEnableServiceGroupSVCChecks
@@ -398,15 +412,19 @@ const (
 	EndpointChangeCustomSVCVar
 	// EndpointChangeMaxSVCCheckAttempts POST /services/<host>/<service>/cmd/change_max_svc_check_attempts Changes the maximum number of check attempts (retries) for a particular service.
 	EndpointChangeMaxSVCCheckAttempts
-	// EndpointChangeNormalSVCCheckInterval POST /services/<host>/<service>/cmd/change_normal_svc_check_interval Changes the normal (regularly scheduled) check interval for a particular service
+	// EndpointChangeNormalSVCCheckInterval POST /services/<host>/<service>/cmd/change_normal_svc_check_interval Changes the normal (regularly scheduled) check interval for a particular service.
 	EndpointChangeNormalSVCCheckInterval
 	// EndpointChangeRetrySVCCheckInterval POST /services/<host>/<service>/cmd/change_retry_svc_check_interval Changes the retry check interval for a particular service.
 	EndpointChangeRetrySVCCheckInterval
-	// EndpointChangeSVCCheckTimeperiod POST /services/<host>/<service>/cmd/change_svc_check_timeperiod Changes the check timeperiod for a particular service to what is specified by the 'check_timeperiod' option. The 'check_timeperiod' option should be the short name of the timeperod that is to be used as the service check timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeSVCCheckTimeperiod POST /services/<host>/<service>/cmd/change_svc_check_timeperiod
+	// Changes the check timeperiod for a particular service to what is specified by the 'check_timeperiod' option. The 'check_timeperiod' option should be the short name of the timeperod that
+	// is to be used as the service check timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
 	EndpointChangeSVCCheckTimeperiod
 	// EndpointChangeSVCModattr POST /services/<host>/<service>/cmd/change_svc_modattr Sends the CHANGE_SVC_MODATTR command.
 	EndpointChangeSVCModattr
-	// EndpointChangeSVCNotificationTimeperiod POST /services/<host>/<service>/cmd/change_svc_notification_timeperiod Changes the service notification timeperiod to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod that is to be used as the service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeSVCNotificationTimeperiod POST /services/<host>/<service>/cmd/change_svc_notification_timeperiod
+	// Changes the service notification timeperiod to what is specified by the 'notification_timeperiod' option. The 'notification_timeperiod' option should be the short name of the timeperiod
+	// that is to be used as the service notification timeperiod. The timeperiod must have been configured in Naemon before it was last (re)started.
 	EndpointChangeSVCNotificationTimeperiod
 	// EndpointDeleteActiveServiceDowntimes POST /services/<host>/<service>/cmd/del_active_service_downtimes Removes all currently active downtimes for this service.
 	EndpointDeleteActiveServiceDowntimes
@@ -452,7 +470,10 @@ const (
 	EndpointScheduleSVCDowntime
 	// EndpointSendCustomSVCNotification POST /services/<host>/<service>/cmd/send_custom_svc_notification Sends the SEND_CUSTOM_SVC_NOTIFICATION command.
 	EndpointSendCustomSVCNotification
-	// EndpointSetSVCNotificationNumber POST /services/<host>/<service>/cmd/set_svc_notification_number Sets the current notification number for a particular service. A value of 0 indicates that no notification has yet been sent for the current service problem. Useful for forcing an escalation (based on notification number) or replicating notification information in redundant monitoring environments. Notification numbers greater than zero have no noticeable affect on the notification process if the service is currently in an OK state.
+	// EndpointSetSVCNotificationNumber POST /services/<host>/<service>/cmd/set_svc_notification_number
+	// Sets the current notification number for a particular service. A value of 0 indicates that no notification has yet been sent for the current service problem. Useful for forcing an
+	// escalation (based on notification number) or replicating notification information in redundant monitoring environments. Notification numbers greater than zero have no noticeable affect
+	// on the notification process if the service is currently in an OK state.
 	EndpointSetSVCNotificationNumber
 	// EndpointStartObsessingOverSVC POST /services/<host>/<service>/cmd/start_obsessing_over_svc Sends the START_OBSESSING_OVER_SVC command.
 	EndpointStartObsessingOverSVC
@@ -478,11 +499,15 @@ const (
 	EndpointGetServiceStats
 	// EndpointGetServiceTotals GET /services/totals livestatus service totals statistics.
 	EndpointGetServiceTotals
-	// EndpointListSites GET /sites lists configured backends
+	// EndpointListSites GET /sites lists configured backends.
 	EndpointListSites
-	// EndpointChangeGlobalHostEventHandler POST /system/cmd/change_global_host_event_handler Changes the global host event handler command to be that specified by the 'event_handler_command' option. The 'event_handler_command' option specifies the short name of the command that should be used as the new host event handler. The command must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeGlobalHostEventHandler POST /system/cmd/change_global_host_event_handler
+	// Changes the global host event handler command to be that specified by the 'event_handler_command' option. The 'event_handler_command' option specifies the short name of the command that
+	// should be used as the new host event handler. The command must have been configured in Naemon before it was last (re)started.
 	EndpointChangeGlobalHostEventHandler
-	// EndpointChangeGlobalSVCEventHandler POST /system/cmd/change_global_svc_event_handler Changes the global service event handler command to be that specified by the 'event_handler_command' option. The 'event_handler_command' option specifies the short name of the command that should be used as the new service event handler. The command must have been configured in Naemon before it was last (re)started.
+	// EndpointChangeGlobalSVCEventHandler POST /system/cmd/change_global_svc_event_handler
+	// Changes the global service event handler command to be that specified by the 'event_handler_command' option. The 'event_handler_command' option specifies the short name of the command
+	// that should be used as the new service event handler. The command must have been configured in Naemon before it was last (re)started.
 	EndpointChangeGlobalSVCEventHandler
 	// EndpointDeleteDowntimeByHostName POST /system/cmd/del_downtime_by_host_name This command deletes all downtimes matching the specified filters.
 	EndpointDeleteDowntimeByHostName
@@ -514,23 +539,28 @@ const (
 	EndpointEnableEventHandlers
 	// EndpointEnableFlapDetection POST /system/cmd/enable_flap_detection Sends the ENABLE_FLAP_DETECTION command.
 	EndpointEnableFlapDetection
-	// EndpointEnableHostFreshnessChecks POST /system/cmd/enable_host_freshness_checks Enables freshness checks of all services on a program-wide basis. Individual services that have freshness checks disabled will not be checked for freshness.
+	// EndpointEnableHostFreshnessChecks POST /system/cmd/enable_host_freshness_checks
+	// Enables freshness checks of all services on a program-wide basis. Individual services that have freshness checks disabled will not be checked for freshness.
 	EndpointEnableHostFreshnessChecks
 	// EndpointEnableNotifications POST /system/cmd/enable_notifications Sends the ENABLE_NOTIFICATIONS command.
 	EndpointEnableNotifications
 	// EndpointEnablePerformanceData POST /system/cmd/enable_performance_data Sends the ENABLE_PERFORMANCE_DATA command.
 	EndpointEnablePerformanceData
-	// EndpointEnableServiceFreshnessChecks POST /system/cmd/enable_service_freshness_checks Enables freshness checks of all services on a program-wide basis. Individual services that have freshness checks disabled will not be checked for freshness.
+	// EndpointEnableServiceFreshnessChecks POST /system/cmd/enable_service_freshness_checks
+	// Enables freshness checks of all services on a program-wide basis. Individual services that have freshness checks disabled will not be checked for freshness.
 	EndpointEnableServiceFreshnessChecks
 	// EndpointAddCustomLogEntry POST /system/cmd/log Add custom log entry to core log.
 	EndpointAddCustomLogEntry
-	// EndpointReadStateInformation POST /system/cmd/read_state_information Causes Naemon to load all current monitoring status information from the state retention file. Normally, state retention information is loaded when the Naemon process starts up and before it starts monitoring. WARNING: This command will cause Naemon to discard all current monitoring status information and use the information stored in state retention file! Use with care.
+	// EndpointReadStateInformation POST /system/cmd/read_state_information
+	// Causes Naemon to load all current monitoring status information from the state retention file. Normally, state retention information is loaded when the Naemon process starts up
+	// and before it starts monitoring. WARNING: This command will cause Naemon to discard all current monitoring status information and use
+	// the information stored in state retention file! Use with care.
 	EndpointReadStateInformation
 	// EndpointRestartProcess POST /system/cmd/restart_process Sends the RESTART_PROCESS command.
 	EndpointRestartProcess
 	// EndpointRestartProgram POST /system/cmd/restart_program Restarts the Naemon process.
 	EndpointRestartProgram
-	// EndpointSaveStateInformation POST /system/cmd/save_state_information Causes Naemon to save all current monitoring status information to the state retention file. Normally, state retention
+	// EndpointSaveStateInformation POST /system/cmd/save_state_information Causes Naemon to save all current monitoring status information to the state retention file. Normally, state retention.
 	EndpointSaveStateInformation
 	// EndpointShutdownProcess POST /system/cmd/shutdown_process Sends the SHUTDOWN_PROCESS command.
 	EndpointShutdownProcess
@@ -560,13 +590,13 @@ const (
 	EndpointStopObsessingOverHostChecks
 	// EndpointStopObsessingOverSVCChecks POST /system/cmd/stop_obsessing_over_svc_checks Sends the STOP_OBSESSING_OVER_SVC_CHECKS command.
 	EndpointStopObsessingOverSVCChecks
-	// EndpointGetThrukInfo GET /thruk hash of basic information about this thruk instance
+	// EndpointGetThrukInfo GET /thruk hash of basic information about this thruk instance.
 	EndpointGetThrukInfo
-	// EndpointListAPIKeys GET /thruk/api_keys lists api keys
+	// EndpointListAPIKeys GET /thruk/api_keys lists api keys.
 	EndpointListAPIKeys
 	// EndpointCreateAPIKey POST /thruk/api_keys create new api key.
 	EndpointCreateAPIKey
-	// EndpointGetAPIKeyByID GET /thruk/api_keys/<id> alias for /thruk/api_keys?hashed_key=<id>
+	// EndpointGetAPIKeyByID GET /thruk/api_keys/<id> alias for /thruk/api_keys?hashed_key=<id>.
 	EndpointGetAPIKeyByID
 	// EndpointDeleteAPIKeyByID DELETE /thruk/api_keys/<id> remove key for given id.
 	EndpointDeleteAPIKeyByID
@@ -584,11 +614,11 @@ const (
 	EndpointDeleteBusinessProcess
 	// EndpointRefreshBusinessProcess POST /thruk/bp/<nr>/refresh recalculate business processes status for given number.
 	EndpointRefreshBusinessProcess
-	// EndpointListBroadcasts GET /thruk/broadcasts lists broadcasts
+	// EndpointListBroadcasts GET /thruk/broadcasts lists broadcasts.
 	EndpointListBroadcasts
 	// EndpointCreateBroadcast POST /thruk/broadcasts create new broadcast.
 	EndpointCreateBroadcast
-	// EndpointGetBroadcastByFile GET /thruk/broadcasts/<file> alias for /thruk/broadcasts?file=<file>
+	// EndpointGetBroadcastByFile GET /thruk/broadcasts/<file> alias for /thruk/broadcasts?file=<file>.
 	EndpointGetBroadcastByFile
 	// EndpointReplaceBroadcastConfig POST /thruk/broadcasts/<file> update entire broadcast for given file.
 	EndpointReplaceBroadcastConfig
@@ -596,17 +626,17 @@ const (
 	EndpointPatchBroadcastConfig
 	// EndpointDeleteBroadcast DELETE /thruk/broadcasts/<file> remove broadcast for given file.
 	EndpointDeleteBroadcast
-	// EndpointListClusterNodes GET /thruk/cluster lists cluster nodes
+	// EndpointListClusterNodes GET /thruk/cluster lists cluster nodes.
 	EndpointListClusterNodes
 	// EndpointGetClusterNodeState GET /thruk/cluster/<id> return cluster state for given node.
 	EndpointGetClusterNodeState
-	// EndpointGetClusterHeartbeatDeprecated GET /thruk/cluster/heartbeat should not be used, use POST method instead
+	// EndpointGetClusterHeartbeatDeprecated GET /thruk/cluster/heartbeat should not be used, use POST method instead.
 	EndpointGetClusterHeartbeatDeprecated
-	// EndpointSendClusterHeartbeat POST /thruk/cluster/heartbeat send cluster heartbeat to all other nodes
+	// EndpointSendClusterHeartbeat POST /thruk/cluster/heartbeat send cluster heartbeat to all other nodes.
 	EndpointSendClusterHeartbeat
-	// EndpointRestartClusterNodes POST /thruk/cluster/restart restarts all cluster nodes sequentially
+	// EndpointRestartClusterNodes POST /thruk/cluster/restart restarts all cluster nodes sequentially.
 	EndpointRestartClusterNodes
-	// EndpointGetThrukConfig GET /thruk/config lists configuration information
+	// EndpointGetThrukConfig GET /thruk/config lists configuration information.
 	EndpointGetThrukConfig
 	// EndpointListThrukJobs GET /thruk/jobs lists thruk jobs.
 	EndpointListThrukJobs
@@ -614,11 +644,11 @@ const (
 	EndpointGetThrukJobStatus
 	// EndpointGetThrukJobOutput GET /thruk/jobs/<id>/output get thruk job output for given id.
 	EndpointGetThrukJobOutput
-	// EndpointGetLogCacheStats GET /thruk/logcache/stats lists logcache statistics
+	// EndpointGetLogCacheStats GET /thruk/logcache/stats lists logcache statistics.
 	EndpointGetLogCacheStats
 	// EndpointRunLogCacheDeltaUpdate POST /thruk/logcache/update runs the logcache delta update.
 	EndpointRunLogCacheDeltaUpdate
-	// EndpointGetThrukMetrics GET /thruk/metrics alias for /thruk/stats
+	// EndpointGetThrukMetrics GET /thruk/metrics alias for /thruk/stats.
 	EndpointGetThrukMetrics
 	// EndpointListPanoramaDashboards GET /thruk/panorama lists all panorama dashboards.
 	EndpointListPanoramaDashboards
@@ -632,7 +662,7 @@ const (
 	EndpointListRecurringDowntimes
 	// EndpointCreateRecurringDowntime POST /thruk/recurring_downtimes create new downtime.
 	EndpointCreateRecurringDowntime
-	// EndpointGetRecurringDowntimeByFile GET /thruk/recurring_downtimes/<file> alias for /thruk/recurring_downtimes?file=<file>
+	// EndpointGetRecurringDowntimeByFile GET /thruk/recurring_downtimes/<file> alias for /thruk/recurring_downtimes?file=<file>.
 	EndpointGetRecurringDowntimeByFile
 	// EndpointReplaceRecurringDowntimeConfig POST /thruk/recurring_downtimes/<file> update entire downtime for given file.
 	EndpointReplaceRecurringDowntimeConfig

@@ -9,18 +9,23 @@ import (
 )
 
 func TestQueryData(t *testing.T) {
-	ds := Datasource{
+	t.Parallel()
+
+	datasource := Datasource{
 		url:        "",
 		httpClient: nil,
 		uid:        "",
 		logger:     zap.NewNop().Sugar(),
 	}
 
-	resp, err := ds.QueryData(
+	resp, err := datasource.QueryData(
 		context.Background(),
+		//nolint:exhaustruct
 		&backend.QueryDataRequest{
+			//nolint: exhaustruct_v5
 			PluginContext: backend.PluginContext{},
 			Headers:       map[string]string{},
+			//nolint: exhaustruct_v5
 			Queries: []backend.DataQuery{
 				{RefID: "A"},
 			},

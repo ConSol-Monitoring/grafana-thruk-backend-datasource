@@ -19,21 +19,23 @@ func cookieNames(cookieHeaderValues []string) []string {
 	var names []string
 
 	for _, value := range cookieHeaderValues {
-		for _, part := range strings.Split(value, ";") {
+		for part := range strings.SplitSeq(value, ";") {
 			name := strings.TrimSpace(part)
 			if eq := strings.IndexByte(name, '='); eq >= 0 {
 				name = name[:eq]
 			}
+
 			if name != "" {
 				names = append(names, name)
 			}
 		}
 	}
+
 	return names
 }
 
-// Ensures some http Client settings are the way that this datasource requires
-// Intended to be run to modify http Client that backend.DatasourceInstanceSettings.HTTPClientOpts(ctx) generates
+// HTTPClientOptionsSetDefaults ensures some http Client settings are the way that this datasource requires
+// Intended to be run to modify http Client that backend.DatasourceInstanceSettings.HTTPClientOpts(ctx) generates.
 func HTTPClientOptionsSetDefaults(opts *httpclient.Options) {
 	// Always forward the headers, this is how 'thruk_auth' cookies should be passed
 	opts.ForwardHTTPHeaders = true
@@ -41,15 +43,22 @@ func HTTPClientOptionsSetDefaults(opts *httpclient.Options) {
 	// Modify some of the timeouts and other settings. golang-sdk still calls this struct TimeoutOpts
 	// These end up in the golang http.Transport
 
+	const timeoutSeconds = 60
+
+	const dialTimeoutSeconds = 10
+
+	const tlsHandshakeTimeoutSeconds = 10
+
 	opts.Timeouts = &httpclient.TimeoutOptions{
-		Timeout:               60 * time.Second,
-		DialTimeout:           10 * time.Second,
+		Timeout:               timeoutSeconds * time.Second,
+		DialTimeout:           dialTimeoutSeconds * time.Second,
 		KeepAlive:             httpclient.DefaultTimeoutOptions.KeepAlive,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   tlsHandshakeTimeoutSeconds * time.Second,
 		ExpectContinueTimeout: httpclient.DefaultTimeoutOptions.ExpectContinueTimeout,
 		// MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts. Zero means no limit.
 		MaxIdleConns: 0,
-		// MaxConnsPerHost optionally limits the total number of connections per host, including connections in the dialing, active, and idle states. On limit violation, dials will block. Zero means no limit.
+		// MaxConnsPerHost optionally limits the total number of connections per host, including connections in the dialing, active, and idle states.
+		// On limit violation, dials will block. Zero means no limit.
 		MaxConnsPerHost: 0,
 		// MaxIdleConnsPerHost, if non-zero, controls the maximum idle (keep-alive) connections to keep per-host. If zero, the stdlib DefaultMaxIdleConnsPerHost (2) is used.
 		MaxIdleConnsPerHost: 0,
@@ -57,16 +66,19 @@ func HTTPClientOptionsSetDefaults(opts *httpclient.Options) {
 	}
 }
 
-// String returns a string representation of the DataSourceInstanceSettings.
+// DataSourceInstanceSettingsToString returns a string representation of the DataSourceInstanceSettings.
 func DataSourceInstanceSettingsToString(settings *backend.DataSourceInstanceSettings) string {
 	var jsonDataBytes []byte
+
 	jsonDataStr := "nil"
 
 	if settings.JSONData != nil {
 		jsonDataBytes = []byte(settings.JSONData)
 		// Pretty-print the JSON
 		var prettyJSON bytes.Buffer
-		if err := json.Indent(&prettyJSON, jsonDataBytes, "", "  "); err == nil {
+
+		err := json.Indent(&prettyJSON, jsonDataBytes, "", "  ")
+		if err == nil {
 			jsonDataStr = "\n" + prettyJSON.String()
 		} else {
 			jsonDataStr = "\n" + string(jsonDataBytes)
@@ -120,7 +132,11 @@ func DataSourceInstanceSettingsToString(settings *backend.DataSourceInstanceSett
 	)
 }
 
+// FieldTypeToString returns the name of the data.FieldType
+//
+//nolint:gocyclo,cyclop,funlen
 func FieldTypeToString(ft data.FieldType) string {
+	//nolint:exhaustive // data.FieldTypeNullableJSON is deprecated, not adding it
 	switch ft {
 	case data.FieldTypeUnknown:
 		return "FieldTypeUnknown"
@@ -178,8 +194,6 @@ func FieldTypeToString(ft data.FieldType) string {
 		return "FieldTypeNullableTime"
 	case data.FieldTypeJSON:
 		return "FieldTypeJSON"
-	case data.FieldTypeNullableJSON:
-		return "FieldTypeNullableJSON"
 	case data.FieldTypeEnum:
 		return "FieldTypeEnum"
 	case data.FieldTypeNullableEnum:
@@ -189,9 +203,12 @@ func FieldTypeToString(ft data.FieldType) string {
 	}
 }
 
+// HTTPClientOptionsToString returns a string repesentation of httpclient.Options .
 func HTTPClientOptionsToString(opts httpclient.Options) string {
 	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("HTTPClientOptions{ForwardHTTPHeaders:%t", opts.ForwardHTTPHeaders))
+
+	fmt.Fprintf(&buf, "HTTPClientOptions{ForwardHTTPHeaders:%t", opts.ForwardHTTPHeaders)
+
 	if opts.Timeouts != nil {
 		fmt.Fprintf(&buf, ", Timeout:%s", opts.Timeouts.Timeout)
 	}
@@ -210,6 +227,7 @@ func HTTPClientOptionsToString(opts httpclient.Options) string {
 		for key := range opts.Header {
 			keys = append(keys, key)
 		}
+
 		sort.Strings(keys)
 
 		fmt.Fprintf(&buf, ", Headers:[%s]", strings.Join(keys, ", "))
@@ -217,12 +235,15 @@ func HTTPClientOptionsToString(opts httpclient.Options) string {
 
 	if len(opts.Labels) > 0 {
 		buf.WriteString(", Labels:[")
+
 		for key, values := range opts.Labels {
 			fmt.Fprintf(&buf, "%s=%v, ", key, values)
 		}
+
 		buf.WriteString("]")
 	}
 
 	buf.WriteByte('}')
+
 	return buf.String()
 }

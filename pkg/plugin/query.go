@@ -17,8 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// What a query coming in from Grafana will contain
-// Defined in types.ts as ThrukQuery in frontend part.
+// QueryModel is what a Query from Grafana SDK will contain
+// Has fields that come from Grafana SDK ,
+// ThrukQuery from types.ts from the frontend ,
+// And injected details from the frontned.
 type QueryModel struct {
 	Table     string   `json:"table"`
 	Columns   []string `json:"columns"`
@@ -32,11 +34,11 @@ type QueryModel struct {
 	//nolint:tagliatelle // Thruk API names it like that, does not use camelCase
 	DashboardUID   string `json:"dashboardUID,omitempty"`
 	DashboardTitle string `json:"dashboardTitle,omitempty"`
-	PanelId        int64  `json:"panelId,omitempty"`
+	PanelID        int64  `json:"panelId,omitempty"`
 	PanelName      string `json:"panelName,omitempty"`
-	PanelPluginId  string `json:"panelPluginId,omitempty"`
+	PanelPluginID  string `json:"panelPluginId,omitempty"`
 	App            string `json:"app,omitempty"`
-	RequestUrl     string `json:"requestUrl,omitempty"`
+	RequestURL     string `json:"requestUrl,omitempty"`
 }
 
 // ============================================== Query Metadata ======================================================
@@ -54,11 +56,11 @@ type QueryMetadata struct {
 
 	DashboardUID   string
 	DashboardTitle string
-	PanelId        int64
+	PanelID        int64
 	PanelName      string
-	PanelPluginId  string
+	PanelPluginID  string
 	App            string
-	RequestUrl     string
+	RequestURL     string
 
 	// authHeaders are the forwarded headers relevant for authenticating the request against Thruk.
 	// Used for caching.
@@ -68,35 +70,27 @@ type QueryMetadata struct {
 // buildQueryMetadataFromContext extracts user/org/header metadata from the query context and the request.
 func buildQueryMetadataFromContext(ctx context.Context, req *backend.QueryDataRequest) QueryMetadata {
 	pluginContext := backend.PluginConfigFromContext(ctx)
+	//nolint: exhaustruct_v5
 	meta := QueryMetadata{
 		Namespace:     pluginContext.Namespace,
 		PluginID:      pluginContext.PluginID,
 		PluginVersion: pluginContext.PluginVersion,
 		User:          backend.UserFromContext(ctx),
 	}
+
 	if pluginContext.DataSourceInstanceSettings != nil {
 		meta.DatasourceUID = pluginContext.DataSourceInstanceSettings.UID
 	}
+
 	if ua := useragent.FromContext(ctx); ua != nil {
 		meta.GrafanaVersion = ua.GrafanaVersion()
 	}
+
 	if req != nil {
 		meta.authHeaders = buildAuthHeaders(req.GetHTTPHeaders())
 	}
-	return meta
-}
 
-// hasCookie reports whether the forwarded Cookie header contains a cookie with the given name.
-func (qm *QueryMetadata) hasCookie(name string) bool {
-	for _, value := range qm.authHeaders["Cookie"] {
-		for _, part := range strings.Split(value, ";") {
-			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, name+"=") {
-				return true
-			}
-		}
-	}
-	return false
+	return meta
 }
 
 // String returns a compact single-line representation of the request metadata for logging/auditing.
@@ -112,17 +106,35 @@ func (qm *QueryMetadata) String() string {
 	return fmt.Sprintf(
 		"user=%s org=%s grafanaVersion=%s dsUid=%s dashboardUid=%s dashboardTitle=%q panelId=%d panelName=%q app=%s url=%q thruk_auth=%t",
 		user, org, qm.GrafanaVersion, qm.DatasourceUID,
-		qm.DashboardUID, qm.DashboardTitle, qm.PanelId, qm.PanelName, qm.App, qm.RequestUrl,
+		qm.DashboardUID, qm.DashboardTitle, qm.PanelID, qm.PanelName, qm.App, qm.RequestURL,
 		qm.hasCookie("thruk_auth"),
 	)
 }
 
+// hasCookie reports whether the forwarded Cookie header contains a cookie with the given name.
+func (qm *QueryMetadata) hasCookie(name string) bool {
+	for _, value := range qm.authHeaders["Cookie"] {
+		for part := range strings.SplitSeq(value, ";") {
+			part = strings.TrimSpace(part)
+			if strings.HasPrefix(part, name+"=") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // ====================================================================================================================
 
+//nolint:funlen
 func query(ctx context.Context, datasource *Datasource, query backend.DataQuery, backendReq *backend.QueryDataRequest) backend.DataResponse {
 	var queryModel QueryModel
-	if err := json.Unmarshal(query.JSON, &queryModel); err != nil {
+
+	err := json.Unmarshal(query.JSON, &queryModel)
+	if err != nil {
 		datasource.logger.Debugf("refId=%s unmarshal error: %v", query.RefID, err)
+
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
 
@@ -130,11 +142,11 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	queryMetadata := buildQueryMetadataFromContext(ctx, backendReq)
 	queryMetadata.DashboardUID = queryModel.DashboardUID
 	queryMetadata.DashboardTitle = queryModel.DashboardTitle
-	queryMetadata.PanelId = queryModel.PanelId
+	queryMetadata.PanelID = queryModel.PanelID
 	queryMetadata.PanelName = queryModel.PanelName
-	queryMetadata.PanelPluginId = queryModel.PanelPluginId
+	queryMetadata.PanelPluginID = queryModel.PanelPluginID
 	queryMetadata.App = queryModel.App
-	queryMetadata.RequestUrl = queryModel.RequestUrl
+	queryMetadata.RequestURL = queryModel.RequestURL
 
 	datasource.logger.Debugf("%s refId=%s table=%s columns=%v condition=%q limit=%d type=%v",
 		queryMetadata.String(), query.RefID, queryModel.Table, queryModel.Columns, queryModel.Condition, queryModel.Limit, queryModel.Type)
@@ -152,16 +164,20 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	if err != nil {
 		datasource.logger.Debugf("refId=%s error when getting cached result: %s", query.RefID, err.Error())
 	}
+
 	if cachedResult != nil {
 		datasource.logger.Debugf("refId=%s found and using cached result for query %s", query.RefID, thrukURL)
+
 		return *cachedResult.result
 	}
 
 	thrukReq, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
 		datasource.logger.Debugf("refId=%s failed to create request: %v", query.RefID, err)
+
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to create request: %v", err))
 	}
+
 	thrukReq.Header.Set("X-Thruk-Outputformat", "wrapped_json")
 
 	// httpClient is set to forward cookies, and datasource is configured to add 'thruk_auth' to fowarded cookies list by default
@@ -178,16 +194,20 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	if err != nil {
 		datasource.logger.Debugf("refId=%s request failed after %v: %v", query.RefID, elapsed, err)
+
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("request failed: %v", err))
 	}
-	defer func() (*backend.CheckHealthResult, error) {
+	defer func() {
 		err := resp.Body.Close()
-		return nil, fmt.Errorf("error when closing response reader: %w", err)
+		if err != nil {
+			datasource.logger.Warnf("error when closing response reader: %w", err)
+		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		datasource.logger.Debugf("refId=%s failed to read response: %v", query.RefID, err)
+
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to read response: %v", err))
 	}
 
@@ -213,78 +233,96 @@ func buildQueryURL(datasource *Datasource, queryModel QueryModel) string {
 	rewriteAliasedEndpoints(&queryModel)
 
 	path := strings.TrimPrefix(queryModel.Table, "/")
-	queryUrl := fmt.Sprintf("%s/r/v1/%s", datasource.url, path)
+	queryURL := fmt.Sprintf("%s/r/v1/%s", datasource.url, path)
 
 	limit := queryModel.Limit
 	if limit <= 0 {
 		limit = defaultLimit
 	}
-	queryUrl += "?limit=" + strconv.Itoa(limit)
 
+	queryURL += "?limit=" + strconv.Itoa(limit)
+
+	//nolint:staticcheck // this way of the condition logic is easier than demorgan
 	if len(queryModel.Columns) > 0 && !(len(queryModel.Columns) == 1 && queryModel.Columns[0] == "*") {
-		queryUrl += "&columns=" + url.QueryEscape(strings.Join(queryModel.Columns, ","))
-	}
-	if queryModel.Condition != "" {
-		queryUrl += "&q=" + url.QueryEscape(queryModel.Condition)
+		queryURL += "&columns=" + url.QueryEscape(strings.Join(queryModel.Columns, ","))
 	}
 
-	return queryUrl
+	if queryModel.Condition != "" {
+		queryURL += "&q=" + url.QueryEscape(queryModel.Condition)
+	}
+
+	return queryURL
 }
 
 // intended to parse thruk reponses in wrapped_json format
-// The "data" field of the json can either be an array of JSON objects or simply a single  JSON object
-func parseThrukResponse(body []byte, qm QueryModel, timeRange backend.TimeRange, logger *zap.SugaredLogger) backend.DataResponse {
-	var thrukResp ThrukWrappedJsonResponse
+// The "data" field of the json can either be an array of JSON objects or simply a single JSON object .
+//
+//nolint:nestif
+func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.TimeRange, logger *zap.SugaredLogger) backend.DataResponse {
+	var thrukResp ThrukWrappedJSONResponse
 
 	// Try wrapped_json format first: { "data": <array|object> , "meta": {...} }
-	var wrappedJsonFormat struct {
+	var wrappedJSONFormat struct {
 		Data json.RawMessage               `json:"data"`
-		Meta *ThrukWrappedJsonResponseMeta `json:"meta"`
+		Meta *ThrukWrappedJSONResponseMeta `json:"meta"`
 	}
 
-	if err := json.Unmarshal(body, &wrappedJsonFormat); err == nil && wrappedJsonFormat.Data != nil {
-		thrukResp.Meta = wrappedJsonFormat.Meta
+	err := json.Unmarshal(body, &wrappedJSONFormat)
+	if err == nil && wrappedJSONFormat.Data != nil {
+		thrukResp.Meta = wrappedJSONFormat.Meta
 		// Try data as array first, then as single object
-		if err := json.Unmarshal(wrappedJsonFormat.Data, &thrukResp.Data); err != nil {
+		err := json.Unmarshal(wrappedJSONFormat.Data, &thrukResp.Data)
+		if err != nil {
 			// if unmarshalling did not work, it is probably a single json object
 			var dataObj map[string]any
-			if err2 := json.Unmarshal(wrappedJsonFormat.Data, &dataObj); err2 == nil {
+
+			err2 := json.Unmarshal(wrappedJSONFormat.Data, &dataObj)
+			if err2 == nil {
 				thrukResp.Data = []map[string]any{dataObj}
 			}
 		}
 	} else {
 		// Not wrapped_json, try as an array of jsonObjects
-		var arrayOfJsonObjects []map[string]any
-		if err := json.Unmarshal(body, &arrayOfJsonObjects); err == nil {
-			thrukResp.Data = arrayOfJsonObjects
+		var arrayOfJSONObjects []map[string]any
+
+		err := json.Unmarshal(body, &arrayOfJSONObjects)
+		if err == nil {
+			thrukResp.Data = arrayOfJSONObjects
 		} else {
 			// Try as single JsonObject
-			var singleJsonObject map[string]any
-			if err := json.Unmarshal(body, &singleJsonObject); err != nil {
+			var singleJSONObject map[string]any
+
+			err := json.Unmarshal(body, &singleJSONObject)
+			if err != nil {
 				logger.Debugf("failed to parse response: %v", err)
+
 				return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to parse response: %v", err))
 			}
-			thrukResp.Data = []map[string]any{singleJsonObject}
+
+			thrukResp.Data = []map[string]any{singleJSONObject}
 		}
 	}
 
 	if len(thrukResp.Data) == 0 {
 		logger.Debugf("empty response, 0 rows returned")
+		//nolint: exhaustruct_v5
 		return backend.DataResponse{Frames: data.Frames{data.NewFrame("response")}}
 	}
 
-	visType := parseVisualizationType(qm.Type)
+	visType := parseVisualizationType(queryModel.Type)
 
 	if visType == "graph" {
-		return buildTimeseriesFrames(&thrukResp, timeRange, qm, logger)
+		return buildTimeseriesFrames(&thrukResp, timeRange, queryModel, logger)
 	}
 
-	return buildTableFrame(&qm, &thrukResp, visType, logger)
+	return buildTableFrame(&queryModel, &thrukResp, visType, logger)
 }
 
 // This function assumes that thrukResponse.Data is of type []map[string]any
-// Even when the response was a single object, it is converted in parseThrukResponse into []map[string]any
-func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visType string, logger *zap.SugaredLogger) backend.DataResponse {
+// Even when the response was a single object, it is converted in parseThrukResponse into []map[string]any .
+//
+//nolint:funlen
+func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visType string, logger *zap.SugaredLogger) backend.DataResponse {
 	// add known query types from query model and columns
 	overrideKnownGrafanaDataTypes(qm, thrukResp.Meta)
 
@@ -292,8 +330,10 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 	columns := determineColumnsFromThrukResponse(thrukResp)
 
 	frame := data.NewFrame("response")
+
 	for _, col := range columns {
 		processUnitType(col, columnMetadatas)
+
 		unknownFieldType := false
 
 		fieldType, metadataWritenType := inferFieldType(col, columnMetadatas)
@@ -314,11 +354,13 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 			// unknown field types default to strings with white background
 			if unknownFieldType {
 				field.Append(anyToString(val))
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "string",
 					Color:       map[string]any{"mode": "fixed", "fixedColor": "white"},
 					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
 				}
+
 				continue
 			}
 
@@ -326,6 +368,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 			switch fieldType {
 			case data.FieldTypeInt64:
 				field.Append(anyToInt64(val))
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "int64",
 					Color:       map[string]any{"mode": "fixed", "fixedColor": "blue"},
@@ -333,6 +376,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 				}
 			case data.FieldTypeFloat64:
 				field.Append(anyToFloat64(val))
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "float64",
 					Color:       map[string]any{"mode": "fixed", "fixedColor": "silver"},
@@ -340,6 +384,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 				}
 			case data.FieldTypeTime:
 				field.Append(anyToTime(val))
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "time",
 					Color:       map[string]any{"mode": "fixed", "fixedColor": "green"},
@@ -348,6 +393,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 			case data.FieldTypeBool:
 				field.Append(anyToBool(val))
 				// Bool fields have built in coloring , light green and light red
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "bool",
 					Custom:      map[string]any{"cellOptions": map[string]any{"mode": "thresholds", "type": "color-background"}},
@@ -364,7 +410,9 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 							val2 = append(val2, anyToString(elem))
 						}
 					}
+
 					field.Append(anyToString(val2))
+					//nolint: exhaustruct_v5
 					field.Config = &data.FieldConfig{
 						Description: "string",
 						Color:       map[string]any{"mode": "fixed", "fixedColor": "fuchsia"},
@@ -373,6 +421,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 				// normal string that is to be displayed as a string
 				default:
 					field.Append(anyToString(val))
+					//nolint: exhaustruct_v5
 					field.Config = &data.FieldConfig{
 						Description: "string",
 						Color:       map[string]any{"mode": "fixed", "fixedColor": "purple"},
@@ -382,6 +431,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 
 			default:
 				field.Append(anyToString(val))
+				//nolint: exhaustruct_v5
 				field.Config = &data.FieldConfig{
 					Description: "string",
 					Color:       map[string]any{"mode": "fixed", "fixedColor": "black"},
@@ -394,8 +444,13 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 	}
 
 	logger.Debugf("table: %d rows, %d columns", len(thrukResp.Data), len(columns))
+	//nolint: exhaustruct_v5
 	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisType(visType)}
-	return backend.DataResponse{Frames: data.Frames{frame}}
+	//nolint: exhaustruct_v5
+	return backend.DataResponse{
+		Status: backend.StatusOK,
+		Frames: data.Frames{frame},
+	}
 }
 
 // buildTimeseriesFrames converts tabular Thruk data into Grafana time series frames.
@@ -403,8 +458,11 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJsonResponse, visTyp
 // Each data row becomes its own frame. Columns with aggregation functions (e.g. "count()")
 // or numeric values become the value column; remaining columns form the series alias.
 // The value is spread across 10 evenly-spaced time points covering the query's time range.
-func buildTimeseriesFrames(thrukResp *ThrukWrappedJsonResponse, timeRange backend.TimeRange, qm QueryModel, logger *zap.SugaredLogger) backend.DataResponse {
+//
+//nolint:funlen
+func buildTimeseriesFrames(thrukResp *ThrukWrappedJSONResponse, timeRange backend.TimeRange, queryModel QueryModel, logger *zap.SugaredLogger) backend.DataResponse {
 	const steps = 10
+
 	from := timeRange.From.Unix()
 	to := timeRange.To.Unix()
 	step := (to - from) / steps
@@ -418,8 +476,9 @@ func buildTimeseriesFrames(thrukResp *ThrukWrappedJsonResponse, timeRange backen
 
 	// Use user-specified columns if provided, otherwise use all response columns
 	orderedColumns := columns
-	if len(qm.Columns) > 0 && !(len(qm.Columns) == 1 && qm.Columns[0] == "*") {
-		orderedColumns = qm.Columns
+	//nolint:staticcheck // this way of the condition logic is easier than demorgan
+	if len(queryModel.Columns) > 0 && !(len(queryModel.Columns) == 1 && queryModel.Columns[0] == "*") {
+		orderedColumns = queryModel.Columns
 	}
 
 	dataRows := thrukResp.Data
@@ -433,11 +492,14 @@ func buildTimeseriesFrames(thrukResp *ThrukWrappedJsonResponse, timeRange backen
 				"__value": dataRows[0][key],
 			})
 		}
+
 		dataRows = converted
 		orderedColumns = []string{"__key", "__value"}
 		// Override meta types for the converted columns
-		metaColumns["__key"] = ThrukWrappedJsonResponseMetaColumn{Name: "__key"}
-		metaColumns["__value"] = ThrukWrappedJsonResponseMetaColumn{Name: "__value",
+		//nolint: exhaustruct_v5
+		metaColumns["__key"] = ThrukWrappedJSONResponseMetaColumn{Name: "__key"}
+		//nolint: exhaustruct_v5
+		metaColumns["__value"] = ThrukWrappedJSONResponseMetaColumn{Name: "__value",
 			GrafanaDataType: data.FieldTypeFloat64}
 	}
 
@@ -455,15 +517,17 @@ func buildTimeseriesFrames(thrukResp *ThrukWrappedJsonResponse, timeRange backen
 
 	logger.Debugf("timeseries: %d rows, valueCol=%s, nameCols=%v", len(dataRows), valueCol, nameCols)
 
-	var frames data.Frames
+	var frames data.Frames = make([]*data.Frame, 0, len(dataRows))
 	for _, row := range dataRows {
 		val := row[valueCol]
 		alias := valueCol
+
 		if len(nameCols) > 0 {
 			parts := make([]string, 0, len(nameCols))
 			for _, nc := range nameCols {
 				parts = append(parts, fmt.Sprintf("%v", row[nc]))
 			}
+
 			alias = strings.Join(parts, ";")
 		}
 
@@ -478,17 +542,24 @@ func buildTimeseriesFrames(thrukResp *ThrukWrappedJsonResponse, timeRange backen
 			frame.Set(1, i, anyToFloat64(val))
 		}
 
+		//nolint: exhaustruct_v5
 		frame.Meta = &data.FrameMeta{
 			PreferredVisualization: data.VisTypeGraph,
 		}
 		frames = append(frames, frame)
 	}
 
-	return backend.DataResponse{Frames: frames}
+	//nolint: exhaustruct_v5
+	return backend.DataResponse{
+		Status: backend.StatusOK,
+		Frames: frames,
+	}
 }
 
-// finds the column with numerical values to use in timeseries visualization
-func findValueColumn(columns []string, metaColumns map[string]ThrukWrappedJsonResponseMetaColumn, dataRows []map[string]any) string {
+// finds the column with numerical values to use in timeseries visualization.
+//
+//nolint:gocognit,nestif
+func findValueColumn(columns []string, metaColumns map[string]ThrukWrappedJSONResponseMetaColumn, dataRows []map[string]any) string {
 	if len(columns) == 0 {
 		return ""
 	}
@@ -509,14 +580,17 @@ func findValueColumn(columns []string, metaColumns map[string]ThrukWrappedJsonRe
 						return col
 					}
 				}
+
 				if metaColumn.Type == "number" {
 					return col
 				}
 			}
+
 			// Fallback: check the actual value
 			if _, isNum := dataRows[0][col].(float64); isNum {
 				return col
 			}
+
 			if _, isNum := dataRows[0][col].(json.Number); isNum {
 				return col
 			}
@@ -529,8 +603,8 @@ func findValueColumn(columns []string, metaColumns map[string]ThrukWrappedJsonRe
 
 // if we know the table used in query model, we can iterate through the columns and add their backend types by hand
 // this is a band-aid fix, only use it if thruk does not report column type metadata incorrectly.
-func overrideKnownGrafanaDataTypes(queryModel *QueryModel, meta *ThrukWrappedJsonResponseMeta) {
-	findAndChangeType := func(meta *ThrukWrappedJsonResponseMeta, name string, t data.FieldType) {
+func overrideKnownGrafanaDataTypes(queryModel *QueryModel, meta *ThrukWrappedJSONResponseMeta) {
+	findAndChangeType := func(meta *ThrukWrappedJSONResponseMeta, name string, t data.FieldType) {
 		for i := range meta.Columns {
 			if meta.Columns[i].Name == name {
 				meta.Columns[i].GrafanaDataType = t
@@ -552,36 +626,44 @@ func parseVisualizationType(typeVal any) string {
 		if s == "timeseries" {
 			return "graph"
 		}
+
 		return s
 	}
+
 	if obj, ok := typeVal.(map[string]any); ok {
 		if v, ok := obj["value"].(string); ok {
 			if v == "timeseries" {
 				return "graph"
 			}
+
 			return v
 		}
 	}
+
 	return "table"
 }
 
 // works on wrapped_json calls where metadata is present, in such calls it looks for resp.Meta.Columns
-// or normal json calls where everything is on the same object, in such calls it looks for first row
-func determineColumnsFromThrukResponse(resp *ThrukWrappedJsonResponse) []string {
+// or normal json calls where everything is on the same object, in such calls it looks for first row.
+func determineColumnsFromThrukResponse(resp *ThrukWrappedJSONResponse) []string {
 	if resp.Meta != nil && len(resp.Meta.Columns) > 0 {
 		cols := make([]string, 0, len(resp.Meta.Columns))
 		for _, c := range resp.Meta.Columns {
 			cols = append(cols, c.Name)
 		}
+
 		return cols
 	}
+
 	if len(resp.Data) > 0 {
 		cols := make([]string, 0, len(resp.Data[0]))
 		for key := range resp.Data[0] {
 			cols = append(cols, key)
 		}
+
 		return cols
 	}
+
 	return nil
 }
 
@@ -592,21 +674,24 @@ func buildAuthHeaders(headers http.Header) map[string][]string {
 	var authHeadersToScopeCache = []string{"Cookie", "Authorization", "X-Id-Token", "X-Grafana-User"}
 
 	var authHeaders map[string][]string
+
 	for _, name := range authHeadersToScopeCache {
 		if values, ok := headers[name]; ok {
 			if authHeaders == nil {
 				authHeaders = make(map[string][]string)
 			}
+
 			authHeaders[name] = values
 		}
 	}
+
 	return authHeaders
 }
 
 // builds a map from columnMetadata.Name -> columnMetadata
-// useful for fast map lookups directly using column name
-func buildColumnMetadataMap(resp *ThrukWrappedJsonResponse) map[string]ThrukWrappedJsonResponseMetaColumn {
-	metadataMap := make(map[string]ThrukWrappedJsonResponseMetaColumn)
+// useful for fast map lookups directly using column name.
+func buildColumnMetadataMap(resp *ThrukWrappedJSONResponse) map[string]ThrukWrappedJSONResponseMetaColumn {
+	metadataMap := make(map[string]ThrukWrappedJSONResponseMetaColumn)
 
 	if resp.Meta != nil {
 		for _, c := range resp.Meta.Columns {

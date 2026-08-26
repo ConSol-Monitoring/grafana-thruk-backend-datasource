@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,7 @@ var (
 
 const defaultLimit = 1000
 
-// This struct contains our own definition of the Datasource and the components it needs
+// Datasource struct contains our own definition of the Datasource and the components it needs
 // It should implement CheckHealth() , Query() , Dispose() , CallResource() etc.
 type Datasource struct {
 	url        string
@@ -35,12 +36,12 @@ type Datasource struct {
 	logger     *zap.SugaredLogger
 }
 
-// There are more fields in the settings.JSONData of type json.RawMessage , but not all of them are needed.
-// Only the necessary ones are defined in this struct to be unmarshalled.
-//
 // DatasourceSettingsJSONDataPartial is a partial type to parse backend.DataSourceInstanceSettings.JSONData with
 // jsonData is assembled by the Grafana datasource config UI (src/components/ConfigEditor.tsx).
 // It mixes the plugin's own options ThrukDataSourceOptions, fields written by @grafana/plugin-ui components ConnectionSettings, Auth, AdvancedHttpSettings, and Grafana core.
+//
+// There are more fields in the settings.JSONData of type json.RawMessage , but not all of them are needed.
+// Only the necessary ones are defined in this struct to be unmarshalled.
 type DatasourceSettingsJSONDataPartial struct {
 	// the plugin's own options
 	// from interface ThrukDataSourceOptions in src/types.ts
@@ -64,15 +65,16 @@ type DatasourceSettingsJSONDataPartial struct {
 	// HTTPHeaderName1 *string  `json:"httpHeaderName1,omitempty"`
 }
 
-// This function is to be implemented accoring to the SDK interface
+// NewDatasource function is to be implemented according to the SDK interface
 //
 //nolint:ireturn // returning an interface is the intended way to use the SDK
 func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	datasourceUrl := strings.TrimRight(settings.URL, "/")
+	datasourceURL := strings.TrimRight(settings.URL, "/")
 
 	var jsonDataPartial DatasourceSettingsJSONDataPartial
 	if settings.JSONData != nil {
-		if err := json.Unmarshal(settings.JSONData, &jsonDataPartial); err != nil {
+		err := json.Unmarshal(settings.JSONData, &jsonDataPartial)
+		if err != nil {
 			return nil, fmt.Errorf("failed to parse jsonData: %w", err)
 		}
 	}
@@ -81,6 +83,7 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
+
 	logger = logger.With("datasource", settings.UID)
 	logger.Debugf("settings:\n%s", DataSourceInstanceSettingsToString(&settings))
 
@@ -90,30 +93,34 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	if err != nil {
 		return nil, fmt.Errorf("failed to get http client options from context: %w", err)
 	}
+
 	HTTPClientOptionsSetDefaults(&httpOpts)
 
 	logger.Debugf("http client options: %s", HTTPClientOptionsToString(httpOpts))
 
 	provider := httpclient.NewProvider()
+
 	client, err := provider.New(httpOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create http client using provider: %w", err)
 	}
 
 	return &Datasource{
-		url:        datasourceUrl,
+		url:        datasourceURL,
 		httpClient: client,
 		uid:        settings.UID,
 		logger:     logger,
 	}, nil
 }
 
-// This function is to be implemented accoring to the SDK interface
+// Dispose function is to be implemented according to the SDK interface.
 func (d *Datasource) Dispose() {
 
 }
 
-// This function is to be implemented accoring to the SDK interface
+// CheckHealth function is to be implemented according to the SDK interface.
+//
+//nolint:funlen
 func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	d.logger.Debugf("checking connection to Thruk")
 
@@ -122,6 +129,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
 		d.logger.Debugf("failed to create request: %v", err)
+
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
 			Message:     fmt.Sprintf("Failed to create request: %v", err),
@@ -138,23 +146,27 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 
 	if err != nil {
 		d.logger.Debugf("connection failed after %v: %v", elapsed, err)
+
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
 			Message:     fmt.Sprintf("Connection failed: %v", err),
 			JSONDetails: []byte{},
 		}, nil
 	}
-	defer func() (*backend.CheckHealthResult, error) {
+	defer func() {
 		err := resp.Body.Close()
-		return nil, fmt.Errorf("error when closing response reader: %w", err)
+		if err != nil {
+			d.logger.Warnf("error when closing response body: %v", err)
+		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		d.logger.Debugf("error when reading response body: %w", err)
+
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
-			Message:     fmt.Sprintf("error when reading response body: %w", err),
+			Message:     "error when reading response body: " + err.Error(),
 			JSONDetails: []byte{},
 		}, nil
 	}
@@ -176,8 +188,10 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		}, nil
 	}
 
-	if err := json.Unmarshal(body, &CheckHealthResponseType); err != nil {
+	err = json.Unmarshal(body, &CheckHealthResponseType)
+	if err != nil {
 		d.logger.Debugf("failed to parse response: %v", err)
+
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
 			Message:     fmt.Sprintf("Failed to parse response: %v", err),
@@ -187,6 +201,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 
 	if CheckHealthResponseType.ThrukVersion == "" {
 		d.logger.Debugf("no thruk_version in response")
+
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
 			Message:     "Invalid URL, did not find Thruk version in response",
@@ -195,6 +210,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	}
 
 	d.logger.Debugf("connected to Thruk v%s", CheckHealthResponseType.ThrukVersion)
+
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
 		Message:     "Successfully connected to Thruk v" + CheckHealthResponseType.ThrukVersion,
@@ -202,12 +218,14 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	}, nil
 }
 
-// This function is to be implemented accoring to the SDK interface
+// QueryData function is to be implemented according to the SDK interface.
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	d.logger.Debugf("received %d queries", len(req.Queries))
 
 	results := make([]backend.DataResponse, len(req.Queries))
+
 	var waitGroup sync.WaitGroup
+
 	for idx, dataQuery := range req.Queries {
 		waitGroup.Add(1)
 
@@ -225,17 +243,23 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 		response.Responses[q.RefID] = results[i]
 	}
 
-	//responseJSON, _ := response.DeepCopy().MarshalJSON()
-	//d.logger.Debugf("[QueryData] response:\n%v", string(responseJSON))
+	// responseJSON, _ := response.DeepCopy().MarshalJSON()
+	// d.logger.Debugf("[QueryData] response:\n%v", string(responseJSON))
 
 	return response, nil
 }
 
-// This function is to be implemented accoring to the SDK interface
+// ErrResponseBodyRead error type.
+var ErrResponseBodyRead = errors.New("error when reading response body")
+
+// CallResource function is to be implemented according to the SDK interface.
+//
+//nolint:funlen
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
 	d.logger.Debugf("path: %s url: %s", req.Path, req.URL)
 
 	var thrukPath string
+
 	var extraHeaders map[string]string
 
 	switch req.Path {
@@ -245,6 +269,8 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		parsedURL, err := url.Parse(req.URL)
 		if err != nil {
 			d.logger.Debugf("failed to parse request url")
+
+			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
 				Status:  http.StatusBadRequest,
 				Body:    fmt.Appendf([]byte{}, "failed to parse request url: %s", req.URL),
@@ -256,6 +282,8 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 
 		if table == "" {
 			d.logger.Debugf("missing table parameter")
+
+			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
 				Status:  http.StatusBadRequest,
 				Body:    []byte("missing 'table' query parameter"),
@@ -272,6 +300,8 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		parsedURL, err := url.Parse(req.URL)
 		if err != nil {
 			d.logger.Debugf("failed to parse request url")
+
+			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
 				Status:  http.StatusBadRequest,
 				Body:    fmt.Appendf([]byte{}, "failed to parse request url: %s", req.URL),
@@ -286,6 +316,8 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 
 		if table == "" {
 			d.logger.Debugf("variable-query missing table parameter")
+
+			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
 				Status:  http.StatusBadRequest,
 				Body:    []byte("missing 'table' query parameter"),
@@ -310,9 +342,12 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
 		d.logger.Debugf("failed to create request: %v", err)
+
+		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   fmt.Appendf([]byte{}, "failed to create request: %v", err),
+			Status:  http.StatusInternalServerError,
+			Body:    fmt.Appendf([]byte{}, "failed to create request: %v", err),
+			Headers: map[string][]string{},
 		})
 	}
 
@@ -326,34 +361,40 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 
 	if err != nil {
 		d.logger.Debugf("request failed after %v: %v", elapsed, err)
+
+		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   fmt.Appendf([]byte{}, "request failed: %v", err),
+			Status:  http.StatusInternalServerError,
+			Body:    fmt.Appendf([]byte{}, "request failed: %v", err),
+			Headers: map[string][]string{},
 		})
 	}
 
-	defer func() error {
+	defer func() {
 		err := resp.Body.Close()
-		return fmt.Errorf("error when closing response reader: %w", err)
+		if err != nil {
+			d.logger.Warnf("error when closing response body: %v", err)
+		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		d.logger.Debugf("failed to read response: %v", err)
+
+		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   fmt.Appendf([]byte{}, "failed to read response: %v", err),
+			Status:  http.StatusInternalServerError,
+			Body:    fmt.Appendf([]byte{}, "failed to read response: %v", err),
+			Headers: map[string][]string{},
 		})
 	}
-	defer func() (*backend.CheckHealthResult, error) {
-		err := resp.Body.Close()
-		return nil, fmt.Errorf("error when closing response reader: %w", err)
-	}()
 
 	d.logger.Debugf("response %d (%v, %d bytes)", resp.StatusCode, elapsed, len(body))
 
+	//nolint:exhaustruct,wrapcheck // error is handled by the SDK, no need to wrap it
 	return sender.Send(&backend.CallResourceResponse{
-		Status: resp.StatusCode,
-		Body:   body,
+		Status:  resp.StatusCode,
+		Body:    body,
+		Headers: map[string][]string{},
 	})
 }

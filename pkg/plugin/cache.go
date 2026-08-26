@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -9,9 +10,10 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
+// CachedResult represents a cached result, has its own expiration time.
 type CachedResult struct {
 	datasourceUID  string
-	thrukUrl       string
+	thrukURL       string
 	headers        *map[string][]string
 	result         *backend.DataResponse
 	expirationTime time.Time
@@ -23,33 +25,40 @@ var (
 	cachedResultsMutex sync.RWMutex
 )
 
-func findCachedResult(datasourceUID string, thrukUrl string, headers *map[string][]string) *CachedResult {
+//nolint:nestif
+func findCachedResult(datasourceUID string, thrukURL string, headers *map[string][]string) *CachedResult {
 	for _, result := range cachedResults {
-		if result.datasourceUID == datasourceUID && result.thrukUrl == thrukUrl {
+		if result.datasourceUID == datasourceUID && result.thrukURL == thrukURL {
 			headersMatch := true
+
 			if headers != nil {
 				if len(*headers) != len(*result.headers) {
 					continue
 				}
+
 				for header, value := range *headers {
 					resultValue, ok := (*result.headers)[header]
 
 					if !ok {
 						headersMatch = false
+
 						break
 					}
 
 					if !slices.Equal(value, resultValue) {
 						headersMatch = false
+
 						break
 					}
 				}
 			}
+
 			if headersMatch {
 				return result
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -64,6 +73,7 @@ func cleanupExpiredResults() {
 		if cachedResult.expirationTime.Before(now) {
 			continue
 		}
+
 		newCachedresults = append(newCachedresults, cachedResult)
 	}
 
@@ -73,14 +83,18 @@ func cleanupExpiredResults() {
 //nolint:gochecknoinits // need a global ticker
 func init() {
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		const cleanupMinutePeriod = 5
+
+		ticker := time.NewTicker(cleanupMinutePeriod * time.Minute)
 		defer ticker.Stop()
+
 		for range ticker.C {
 			cleanupExpiredResults()
 		}
 	}()
 }
 
+// CachePolicy collections are searched and applied when trying to get, validate and save a cached result.
 type CachePolicy struct {
 	// policy will only work on these tables, if defined
 	filterToTables *[]string
@@ -89,6 +103,7 @@ type CachePolicy struct {
 	cacheDuration   time.Duration
 }
 
+//nolint:gochecknoglobals // need cache policies to be globally defined
 var (
 	cachePolicies = []CachePolicy{
 		{
@@ -124,44 +139,60 @@ func findCachePolicy(qm *QueryModel, headers *map[string][]string) *CachePolicy 
 		if policy.filterToHeaders != nil &&
 			headers != nil &&
 			len(*headers) > 0 &&
-			!slices.ContainsFunc(*policy.filterToHeaders, func(e string) bool { _, ok := (*headers)[e]; return ok }) {
+			!slices.ContainsFunc(*policy.filterToHeaders,
+				func(e string) bool {
+					_, ok := (*headers)[e]
+
+					return ok
+				}) {
 			continue
 		}
+
 		return &policy
 	}
+
 	return nil
 }
 
-func getCachedResult(qm *QueryModel, datasourceUID string, thrukUrl string, headers *map[string][]string) (*CachedResult, error) {
+// ErrCouldNotFindCachePolicy error type.
+var ErrCouldNotFindCachePolicy = errors.New("could not find cache policy")
+
+// ErrNoCachedResults error type.
+var ErrNoCachedResults = errors.New("there are no cached results")
+
+// ErrCachedResultExpired error type.
+var ErrCachedResultExpired = errors.New("there is a cached result, but it is expired")
+
+func getCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, headers *map[string][]string) (*CachedResult, error) {
 	cachedResultsMutex.RLock()
 	defer cachedResultsMutex.RUnlock()
 
-	cachePolicy := findCachePolicy(qm, headers)
+	cachePolicy := findCachePolicy(queryModel, headers)
 	if cachePolicy == nil {
-		return nil, fmt.Errorf("Could not find cache policy for query model with table %s", qm.Table)
+		return nil, fmt.Errorf("%w , table: %s", ErrCouldNotFindCachePolicy, queryModel.Table)
 	}
 
-	cachedResult := findCachedResult(datasourceUID, thrukUrl, headers)
+	cachedResult := findCachedResult(datasourceUID, thrukURL, headers)
 	if cachedResult == nil {
-		return nil, fmt.Errorf("There are no cached results for this datasourceUID: %s and thrukUrl: %s", datasourceUID, thrukUrl)
+		return nil, fmt.Errorf("%w , datasourceUID: %s , thrukUrl: %s", ErrNoCachedResults, datasourceUID, thrukURL)
 	}
 
 	now := time.Now()
 	if cachedResult.expirationTime.Before(now) {
-		return nil, fmt.Errorf("Cached result expiration time : %s is expired, current time: %s", cachedResult.expirationTime.Format(time.RFC3339), now.Format(time.RFC3339))
+		return nil, fmt.Errorf("%w , cache time : %s, current time: %s", ErrCachedResultExpired, cachedResult.expirationTime.Format(time.RFC3339), now.Format(time.RFC3339))
 	}
 
 	return cachedResult, nil
 }
 
-func writeCachedResult(qm *QueryModel, datasourceUID string, thrukUrl string, headers *map[string][]string, result *backend.DataResponse) error {
+func writeCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, headers *map[string][]string, result *backend.DataResponse) error {
 	if result == nil {
-		return fmt.Errorf("There is no result to write into the cache")
+		return fmt.Errorf("%w , argument: result", ErrArgumentNil)
 	}
 
-	cachePolicy := findCachePolicy(qm, headers)
+	cachePolicy := findCachePolicy(queryModel, headers)
 	if cachePolicy == nil {
-		return fmt.Errorf("Could not find cache policy for query model with table %s", qm.Table)
+		return fmt.Errorf("%w , table: %s", ErrCouldNotFindCachePolicy, queryModel.Table)
 	}
 
 	cachedResultsMutex.Lock()
@@ -169,7 +200,7 @@ func writeCachedResult(qm *QueryModel, datasourceUID string, thrukUrl string, he
 
 	cachedResults = append(cachedResults, &CachedResult{
 		datasourceUID:  datasourceUID,
-		thrukUrl:       thrukUrl,
+		thrukURL:       thrukURL,
 		headers:        headers,
 		result:         result,
 		expirationTime: time.Now().Add(cachePolicy.cacheDuration),
@@ -178,20 +209,20 @@ func writeCachedResult(qm *QueryModel, datasourceUID string, thrukUrl string, he
 	return nil
 }
 
-func rewriteAliasedEndpoints(qm *QueryModel) (changed bool) {
+func rewriteAliasedEndpoints(queryModel *QueryModel) bool {
 	// Aliases come from Thruk Docs
 	// https://www.thruk.org/documentation/rest.html
-	changed = false
+	changed := false
 	// Convert to the endpoint with lower lexicographical value
-	switch qm.Table {
+	switch queryModel.Table {
 	case "/index":
-		qm.Table = "/"
+		queryModel.Table = "/"
 		changed = true
 	case "/thruk/stats":
-		qm.Table = "/thruk/metrics"
+		queryModel.Table = "/thruk/metrics"
 		changed = true
 	case "/thruk/node-control/nodes":
-		qm.Table = "/thruk/nc/odes"
+		queryModel.Table = "/thruk/nc/odes"
 		changed = true
 	}
 

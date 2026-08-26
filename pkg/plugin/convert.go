@@ -10,8 +10,8 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
-func anyToTime(v any) time.Time {
-	switch val := v.(type) {
+func anyToTime(value any) time.Time {
+	switch val := value.(type) {
 	case float64:
 		return time.Unix(int64(val), 0)
 	case json.Number:
@@ -20,11 +20,12 @@ func anyToTime(v any) time.Time {
 			return time.Unix(i, 0)
 		}
 	}
+
 	return time.Time{}
 }
 
-func anyToFloat64(v any) float64 {
-	switch val := v.(type) {
+func anyToFloat64(value any) float64 {
+	switch val := value.(type) {
 	case float64:
 		return val
 	case json.Number:
@@ -33,11 +34,12 @@ func anyToFloat64(v any) float64 {
 			return f
 		}
 	}
+
 	return 0
 }
 
-func anyToInt64(v any) int64 {
-	switch val := v.(type) {
+func anyToInt64(value any) int64 {
+	switch val := value.(type) {
 	case int64:
 		return val
 	case float64:
@@ -48,20 +50,23 @@ func anyToInt64(v any) int64 {
 			return f
 		}
 	}
+
 	return 0
 }
 
-func anyToBool(v any) bool {
-	switch val := v.(type) {
+func anyToBool(value any) bool {
+	switch val := value.(type) {
 	case int64:
-		if vInt64, ok := v.(int64); ok && vInt64 == 1 {
+		if vInt64, ok := value.(int64); ok && vInt64 == 1 {
 			return true
 		}
+
 		return false
 	case float64:
-		if vFloat64, ok := v.(float64); ok && vFloat64 == 1 {
+		if vFloat64, ok := value.(float64); ok && vFloat64 == 1 {
 			return true
 		}
+
 		return false
 	case bool:
 		return val
@@ -71,29 +76,31 @@ func anyToBool(v any) bool {
 			return b
 		}
 	}
+
 	return false
 }
 
-func anyToString(v any) string {
-	switch val := v.(type) {
+func anyToString(value any) string {
+	switch val := value.(type) {
 	case string:
 		return val
 	case int64:
-		return fmt.Sprintf("%d", val)
+		return strconv.FormatInt(val, 10)
 	case float64:
 		return fmt.Sprintf("%f", val)
 	case bool:
-		return fmt.Sprintf("%t", val)
+		return strconv.FormatBool(val)
 	case []string:
 		return strings.Join(val, ",")
 	}
+
 	return ""
 }
 
 // To get all possible types from Thruk, run this command in Thruk sources /src/thruk/lib/Thruk/Controller/Rest/V1
 // grep -nrw '"type":' docs.pm > types.txt .
 // grep -nrw '"type":' livestatus_docs.pm > types.txt .
-func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJsonResponseMetaColumn) (data.FieldType, string) {
+func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) (data.FieldType, string) {
 	if columnMetadata, ok := columnMetadatas[columnName]; ok {
 		// if the columnMetadata has a saved type, use it
 		if columnMetadata.GrafanaDataType != data.FieldTypeUnknown {
@@ -130,8 +137,8 @@ func inferFieldType(columnName string, columnMetadatas map[string]ThrukWrappedJs
 	return data.FieldTypeString, ""
 }
 
-// Parses the optional units added in Thruk function _get_columns_meta_for_path on API calls
-func processUnitType(columnName string, columnMetadatas map[string]ThrukWrappedJsonResponseMetaColumn) {
+// Parses the optional units added in Thruk function _get_columns_meta_for_path on API calls.
+func processUnitType(columnName string, columnMetadatas map[string]ThrukWrappedJSONResponseMetaColumn) {
 	if mc, ok := columnMetadatas[columnName]; ok {
 		if mc.Config != nil {
 			if configStructConverted, convOk := mc.Config.(struct{ Unit string }); convOk {

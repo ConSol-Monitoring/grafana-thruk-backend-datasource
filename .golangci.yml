@@ -1,10 +1,23 @@
 version: '2'
 linters:
   default: all
+  enable:
+    - gomodguard_v2
+    - wsl_v5
+    - exhaustruct_v5
+  disable:
+    - exhaustruct
+    - gomodguard
+    - wsl
+    - testpackage
   exclusions:
     paths:
       - node_modules
   settings:
+    gocyclo:
+      min-complexity: 27
+    cyclop:
+      max-complexity: 20
     lll:
       line-length: 200
     funlen:
@@ -13,14 +26,20 @@ linters:
     goconst:
       min-len: 8
       min-occurrences: 12
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
     depguard:
       rules:
         main:
           files:
             - "$all"
           allow:
-            - "github.com/grafana/grafana-plugin-sdk-go/"
-            - "go.uber.org/zap"
             - "os"
             - "fmt"
             - "slices"
@@ -35,3 +54,10 @@ linters:
             - "sort"
             - "path/filepath"
             - "testing"
+            - "io"
+            - "bytes"
+            - "errors"
+            - "github.com/grafana/grafana-plugin-sdk-go/"
+            - "go.uber.org/zap"
+            - "github.com/jsternberg/zap-logfmt"
+            - "github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/pkg/plugin"
