@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +15,20 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
+
+const maxResponseBodyBytes int64 = 100 * 1024 * 1024
+
+func readResponseBody(body io.Reader) ([]byte, error) {
+	limited := io.LimitReader(body, maxResponseBodyBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxResponseBodyBytes {
+		return nil, fmt.Errorf("response body exceeds %d bytes", maxResponseBodyBytes)
+	}
+	return data, nil
+}
 
 func validateAPIPath(value string) error {
 	if value == "" || strings.ContainsAny(value, "?#\x00\r\n") {

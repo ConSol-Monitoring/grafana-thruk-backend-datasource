@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -160,7 +159,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp.Body)
 	if err != nil {
 		d.logger.Debugf("error when reading response body: %w", err)
 
@@ -387,7 +386,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp.Body)
 	if err != nil {
 		d.logger.Debugf("failed to read response: %v", err)
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -204,7 +203,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp.Body)
 	if err != nil {
 		datasource.logger.Debugf("refId=%s failed to read response: %v", query.RefID, err)
 
