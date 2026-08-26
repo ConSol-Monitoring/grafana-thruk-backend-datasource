@@ -11,7 +11,7 @@
   "info": {
     "description": "Grafana backend datasource plugin using Thruk's REST API to query and visualize monitoring data from OMD / Thruk instances.",
     "author": {
-      "name": "ConSol-Monitoring Team"
+      "name": "consolmonitoring"
     },
     "keywords": ["datasource"],
     "logos": {
@@ -26,6 +26,10 @@
       {
         "name": "Documentation",
         "url": "https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/blob/master/README.md"
+      },
+      {
+        "name": "Sponsorship",
+        "url": "https://github.com/ConSol-Monitoring/"
       }
     ],
     "screenshots": [
