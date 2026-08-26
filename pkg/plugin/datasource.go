@@ -261,6 +261,8 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 
 	var extraHeaders map[string]string
 
+	var err error
+
 	switch req.Path {
 	case "tables":
 		thrukPath = "/r/v1/index?columns=url&protocol=get"
@@ -291,8 +293,10 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 
 		table = strings.TrimPrefix(table, "/")
-		if err := validateAPIPath(table); err != nil {
-			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+
+		err = validateAPIPath(table)
+		if err != nil {
+			return sendBadRequest(sender, err)
 		}
 
 		thrukPath = "/r/v1/" + table
@@ -328,8 +332,10 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 
 		table = strings.TrimPrefix(table, "/")
-		if err := validateAPIPath(table); err != nil {
-			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+
+		err = validateAPIPath(table)
+		if err != nil {
+			return sendBadRequest(sender, err)
 		}
 
 		thrukPath = "/r/v1/" + table + "?columns=" + url.QueryEscape(columns) +
@@ -339,9 +345,12 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		extraHeaders = map[string]string{"X-Thruk-Output-Metadata-Only": "true"}
 	default:
 		resourcePath := strings.TrimPrefix(req.Path, "/")
-		if err := validateAPIPath(resourcePath); err != nil {
-			return sender.Send(&backend.CallResourceResponse{Status: http.StatusBadRequest, Body: []byte(err.Error()), Headers: map[string][]string{}})
+
+		err = validateAPIPath(resourcePath)
+		if err != nil {
+			return sendBadRequest(sender, err)
 		}
+
 		thrukPath = "/r/v1/" + resourcePath
 	}
 
@@ -406,4 +415,12 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		Body:    body,
 		Headers: map[string][]string{},
 	})
+}
+
+func sendBadRequest(sender backend.CallResourceResponseSender, err error) error {
+	return fmt.Errorf("send bad request response: %w", sender.Send(&backend.CallResourceResponse{
+		Status:  http.StatusBadRequest,
+		Body:    []byte(err.Error()),
+		Headers: map[string][]string{},
+	}))
 }

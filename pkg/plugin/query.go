@@ -136,7 +136,9 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
-	if err := validateAPIPath(queryModel.Table); err != nil {
+
+	err = validateAPIPath(queryModel.Table)
+	if err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, err.Error())
 	}
 

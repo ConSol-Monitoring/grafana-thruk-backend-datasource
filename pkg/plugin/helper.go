@@ -3,10 +3,11 @@ package plugin
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -18,31 +19,40 @@ import (
 
 const maxResponseBodyBytes int64 = 100 * 1024 * 1024
 
+var (
+	ErrResponseBodyTooLarge = errors.New("response body exceeds configured limit")
+	ErrInvalidAPIPath       = errors.New("invalid API path")
+	ErrAPIPathEscapes       = errors.New("API path must not escape the Thruk API")
+)
+
 func readResponseBody(body io.Reader) ([]byte, error) {
 	limited := io.LimitReader(body, maxResponseBodyBytes+1)
+
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrResponseBodyRead, err)
 	}
+
 	if int64(len(data)) > maxResponseBodyBytes {
-		return nil, fmt.Errorf("response body exceeds %d bytes", maxResponseBodyBytes)
+		return nil, ErrResponseBodyTooLarge
 	}
+
 	return data, nil
 }
 
 func validateAPIPath(value string) error {
 	if value == "" || strings.ContainsAny(value, "?#\x00\r\n") {
-		return fmt.Errorf("invalid API path")
+		return ErrInvalidAPIPath
 	}
 
 	decoded, err := url.PathUnescape(value)
 	if err != nil || strings.ContainsAny(decoded, "\x00\r\n") {
-		return fmt.Errorf("invalid API path")
+		return ErrInvalidAPIPath
 	}
 
-	clean := path.Clean("/" + decoded)
+	clean := filepath.Clean("/" + decoded)
 	if clean == "/.." || strings.HasPrefix(clean, "/../") {
-		return fmt.Errorf("API path must not escape the Thruk API")
+		return ErrAPIPathEscapes
 	}
 
 	return nil
