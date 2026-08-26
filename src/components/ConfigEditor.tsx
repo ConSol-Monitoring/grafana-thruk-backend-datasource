@@ -65,7 +65,7 @@ export function ConfigEditor(props: Props) {
           tooltip={'LogLevel to use for the plugin. Uses syslog(3) style levels, valid levels are [0-7]'}
         >
           <Input
-            id="config-editor-path"
+            id="config-editor-log-level"
             onChange={onLogLevelChange}
             value={optionsDefaulted.jsonData.logLevel}
             placeholder="Enter a numeric log level"
@@ -80,7 +80,7 @@ export function ConfigEditor(props: Props) {
           tooltip={'Log Path to use for the plugin. Can specify $HOME or use relative paths.'}
         >
           <Input
-            id="config-editor-path"
+            id="config-editor-log-path"
             onChange={onLogPathChange}
             value={optionsDefaulted.jsonData.logPath}
             placeholder="Enter a log path"
