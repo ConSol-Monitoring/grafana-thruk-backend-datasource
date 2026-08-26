@@ -12,6 +12,18 @@ NODEVERSION=24
 export NODE_PATH=$(shell pwd)/node_modules
 SHELL=bash
 
+# golangci-lint is used for linting the backend
+# mage has to be installed
+GO          ?= go
+GOBIN       ?= $(shell $(GO) env GOPATH)/bin
+GOLANGCI    ?= $(GOBIN)/golangci-lint
+PROJECT     ?= grafana-thruk-backend-datasource
+
+# current go version as major*10000+minor, ex.: go1.27.0 -> 10027
+GOVERSION        := $(shell $(GO) version | awk '/^go version go/{ v = $$3; sub(/^go/, "", v); split(v, a, "."); print a[1]*10000 + a[2] }')
+MINGOVERSION     := 10026
+MINGOVERSIONSTR  := 1.26
+
 build:
 	$(DOCKER)    --name $(PLUGINNAME)-build        node:$(NODEVERSION) bash -c "npm install && npm run build"
 
@@ -72,6 +84,10 @@ releasebuild:
 	@echo "release build successful: $(TAGVERSION)"
 	ls -la $(PLUGINNAME)-$(TAGVERSION).zip
 
+buildbackend:
+	$(GOBIN)/mage -v
+	chmod 0755 dist/gpx_*
+
 # just skip unknown make targets
 .DEFAULT:
 	@if [[ "$(MAKECMDGOALS)" =~ ^buildupgrade ]] || [[  "$(MAKECMDGOALS)" =~ ^buildnpm ]] ; then \
@@ -80,17 +96,6 @@ releasebuild:
 		echo "unknown make target(s): $(MAKECMDGOALS)"; \
 		exit 1; \
 	fi
-
-# golangci-lint is used for linting the backend
-GO          ?= go
-GOBIN       ?= $(shell $(GO) env GOPATH)/bin
-GOLANGCI    ?= $(GOBIN)/golangci-lint
-PROJECT     ?= grafana-thruk-backend-datasource
-
-# current go version as major*10000+minor, ex.: go1.27.0 -> 10027
-GOVERSION        := $(shell $(GO) version | awk '/^go version go/{ v = $$3; sub(/^go/, "", v); split(v, a, "."); print a[1]*10000 + a[2] }')
-MINGOVERSION     := 10026
-MINGOVERSIONSTR  := 1.26
 
 versioncheck:
 	@if [ -z "$(GOVERSION)" ] || [ "$(GOVERSION)" -lt "$(MINGOVERSION)" ]; then \
@@ -111,3 +116,14 @@ golangci: tools
 	$(GOLANGCI) version
 	@echo "  - GOOS=linux"
 	GOOS=linux CGO_ENABLED=0 $(GOLANGCI) run $(GOLANG_CI_OPTIONS) ./...
+
+buildzipforvalidator: build
+	@$(MAKE) buildbackend
+	@set -eu; \
+		PLUGIN_ID=$$(grep '"id"' < src/plugin.json | sed -E 's/.*"id" *: *"(.*)".*/\1/' | tr -cd 'a-zA-Z0-9._-'); \
+		TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
+		ZIP_NAME="$${PLUGIN_ID}-$${TIMESTAMP}.zip"; \
+		cp -r dist "$${PLUGIN_ID}"; \
+		zip -qr "$${ZIP_NAME}" "$${PLUGIN_ID}"; \
+		rm -rf "$${PLUGIN_ID}"; \
+		echo "created $${ZIP_NAME}"
