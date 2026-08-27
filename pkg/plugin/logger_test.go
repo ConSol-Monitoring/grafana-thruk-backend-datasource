@@ -7,49 +7,52 @@ import (
 	"testing"
 )
 
-func TestCreateFileLoggerNoPath(t *testing.T) {
+func TestNewLoggersNoPath(t *testing.T) {
 	t.Parallel()
 
-	logger, closeFn, err := createFileLogger(&DatasourceSettingsJSONDataPartial{LogLevel: 0, LogPath: ""})
+	loggers, err := NewLoggers(&DatasourceSettingsJSONDataPartial{LogLevel: 0, LogPath: ""}, "ds-1")
 	if err != nil {
 		t.Fatalf("expected no error without a log path: %v", err)
 	}
 
-	if logger != nil {
+	if loggers.fileLogger != nil {
 		t.Fatal("expected no file logger when no log path is configured")
 	}
 
-	if closeFn != nil {
+	if loggers.fileClose != nil {
 		t.Fatal("expected no close function when no log path is configured")
 	}
+
+	// Close must be a safe no-op when no file is configured.
+	loggers.Close()
 }
 
-func TestCreateFileLoggerWritablePath(t *testing.T) {
+func TestNewLoggersWritablePath(t *testing.T) {
 	t.Parallel()
 
 	logPath := filepath.Join(t.TempDir(), "plugin.log")
 
-	logger, closeFn, err := createFileLogger(&DatasourceSettingsJSONDataPartial{
+	loggers, err := NewLoggers(&DatasourceSettingsJSONDataPartial{
 		LogLevel: 7,
 		LogPath:  logPath,
-	})
+	}, "ds-1")
 	if err != nil {
 		t.Fatalf("expected logger creation to succeed: %v", err)
 	}
 
-	if logger == nil {
+	if loggers.fileLogger == nil {
 		t.Fatal("expected a file logger when a log path is configured")
 	}
 
-	if closeFn == nil {
+	if loggers.fileClose == nil {
 		t.Fatal("expected a close function when a log path is configured")
 	}
 
-	logger.Debug("lifecycle test message")
+	loggers.debugf("lifecycle test message")
 
 	// Closing must flush and close the log file without error.
-	closeFn()
-	closeFn()
+	loggers.Close()
+	loggers.Close()
 
 	_, statErr := os.Stat(logPath)
 	if statErr != nil {
@@ -57,7 +60,7 @@ func TestCreateFileLoggerWritablePath(t *testing.T) {
 	}
 }
 
-func TestCreateFileLoggerParentIsFile(t *testing.T) {
+func TestNewLoggersParentIsFile(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -70,10 +73,10 @@ func TestCreateFileLoggerParentIsFile(t *testing.T) {
 
 	logPath := filepath.Join(parentAsFile, "plugin.log")
 
-	_, _, err = createFileLogger(&DatasourceSettingsJSONDataPartial{
+	_, err = NewLoggers(&DatasourceSettingsJSONDataPartial{
 		LogLevel: 7,
 		LogPath:  logPath,
-	})
+	}, "ds-1")
 	if err == nil {
 		t.Fatal("expected error when the log path parent is a file")
 	}
@@ -83,15 +86,15 @@ func TestCreateFileLoggerParentIsFile(t *testing.T) {
 	}
 }
 
-func TestCreateFileLoggerPathIsDirectory(t *testing.T) {
+func TestNewLoggersPathIsDirectory(t *testing.T) {
 	t.Parallel()
 
 	logPath := t.TempDir()
 
-	_, _, err := createFileLogger(&DatasourceSettingsJSONDataPartial{
+	_, err := NewLoggers(&DatasourceSettingsJSONDataPartial{
 		LogLevel: 7,
 		LogPath:  logPath,
-	})
+	}, "ds-1")
 	if err == nil {
 		t.Fatal("expected error when the log path is a directory")
 	}

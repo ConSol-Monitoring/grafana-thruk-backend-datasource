@@ -61,9 +61,11 @@ func TestQueryData(t *testing.T) {
 		url:        "",
 		httpClient: nil,
 		uid:        "",
-		sdkLogger:  log.NewNullLogger(),
-		fileLogger: nil,
-		fileClose:  nil,
+		loggers: &Loggers{
+			sdk:        log.NewNullLogger(),
+			fileLogger: nil,
+			fileClose:  nil,
+		},
 	}
 
 	resp, err := datasource.QueryData(
@@ -98,10 +100,12 @@ func TestDisposeClosesFileLogger(t *testing.T) {
 		url:        "",
 		httpClient: nil,
 		uid:        "",
-		sdkLogger:  log.NewNullLogger(),
-		fileLogger: nil,
-		fileClose: func() {
-			closed = true
+		loggers: &Loggers{
+			sdk:        log.NewNullLogger(),
+			fileLogger: nil,
+			fileClose: func() {
+				closed = true
+			},
 		},
 	}
 

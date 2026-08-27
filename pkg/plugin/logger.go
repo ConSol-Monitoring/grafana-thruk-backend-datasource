@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 
 	"go.uber.org/zap"
@@ -28,6 +29,69 @@ const (
 	// logMaxAgeDays is how many days to retain rotated files.
 	logMaxAgeDays = 28
 )
+
+// Loggers bundles a datasource's log destinations: Grafana's logging pipeline and an
+// optional rotated log file.
+type Loggers struct {
+	// sdk sends logs to Grafana's logging pipeline with the datasource context.
+	sdk log.Logger
+	// fileLogger writes to the configured log file, or is nil when no log path is set.
+	fileLogger *zap.SugaredLogger
+	// fileClose flushes and closes the log file, or is nil when no log path is set.
+	fileClose func()
+}
+
+// NewLoggers builds a datasource's loggers. A log file is only created when a log path is
+// explicitly configured in jsonData; otherwise logging goes to Grafana's pipeline only.
+func NewLoggers(jsonData *DatasourceSettingsJSONDataPartial, uid string) (*Loggers, error) {
+	loggers := &Loggers{
+		sdk:        log.DefaultLogger.With("datasource", uid),
+		fileLogger: nil,
+		fileClose:  nil,
+	}
+
+	fileLogger, fileClose, err := createFileLogger(jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	loggers.fileLogger = fileLogger
+	loggers.fileClose = fileClose
+
+	return loggers, nil
+}
+
+// Close flushes and closes the optional log file. It is safe to call when no log file is
+// configured.
+func (l *Loggers) Close() {
+	if l.fileClose != nil {
+		l.fileClose()
+	}
+}
+
+// debugf logs a formatted debug message to Grafana's logging pipeline and, when a log file
+// is configured, to that file as well.
+func (l *Loggers) debugf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+
+	l.sdk.Debug(msg)
+
+	if l.fileLogger != nil {
+		l.fileLogger.Debug(msg)
+	}
+}
+
+// warnf logs a formatted warning message to Grafana's logging pipeline and, when a log file
+// is configured, to that file as well.
+func (l *Loggers) warnf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+
+	l.sdk.Warn(msg)
+
+	if l.fileLogger != nil {
+		l.fileLogger.Warn(msg)
+	}
+}
 
 // createFileLogger builds an optional Zap logger that writes to the configured log file.
 // It returns a nil logger and a nil close function when no log path is configured, in which
