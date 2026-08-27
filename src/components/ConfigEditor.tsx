@@ -9,24 +9,23 @@ import {
 } from '@grafana/plugin-ui';
 import { DataSourcePluginOptionsEditorProps, LogLevel } from '@grafana/data';
 import { ThrukDataSourceOptions } from '../types';
+import { applyThrukDefaults } from './configDefaults';
 
 interface Props extends DataSourcePluginOptionsEditorProps<ThrukDataSourceOptions> {}
 
 export function ConfigEditor(props: Props) {
   const { onOptionsChange, options } = props;
 
-  const optionsDefaulted = {
-    ...options,
-    jsonData: {
-      ...options.jsonData,
-      logLevel: options.jsonData.logLevel || 0,
-      logPath: options.jsonData.logPath || '${OMD_ROOT}/var/log/grafana/consolmonitoring-thruk-datasource.log',
-      keepCookies: options.jsonData.keepCookies || ['thruk_auth'],
-    },
+  // Persist the plugin defaults on every change so the saved datasource
+  // configuration always carries keepCookies=['thruk_auth'].
+  const onChangeOptions = (config: typeof options) => {
+    onOptionsChange(applyThrukDefaults(config));
   };
 
+  const optionsDefaulted = applyThrukDefaults(options);
+
   const onLogLevelChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onOptionsChange({
+    onChangeOptions({
       ...options,
       jsonData: {
         ...options.jsonData,
@@ -36,7 +35,7 @@ export function ConfigEditor(props: Props) {
   };
 
   const onLogPathChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onOptionsChange({
+    onChangeOptions({
       ...options,
       jsonData: {
         ...options.jsonData,
@@ -47,17 +46,17 @@ export function ConfigEditor(props: Props) {
 
   return (
     <>
-      <ConnectionSettings config={optionsDefaulted} onChange={props.onOptionsChange} />
+      <ConnectionSettings config={optionsDefaulted} onChange={onChangeOptions} />
 
       <Auth
         {...convertLegacyAuthProps({
           config: optionsDefaulted,
-          onChange: props.onOptionsChange,
+          onChange: onChangeOptions,
         })}
       />
 
       <ConfigSection title="Advanced settings" isCollapsible isInitiallyOpen={true}>
-        <AdvancedHttpSettings config={optionsDefaulted} onChange={props.onOptionsChange} />
+        <AdvancedHttpSettings config={optionsDefaulted} onChange={onChangeOptions} />
 
         <InlineField
           label="Log Level"
