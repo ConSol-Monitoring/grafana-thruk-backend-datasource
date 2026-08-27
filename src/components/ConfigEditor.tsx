@@ -77,7 +77,7 @@ export function ConfigEditor(props: Props) {
           label="Log Path"
           labelWidth={14}
           interactive
-          tooltip={'Log Path to use for the plugin. Can specify $HOME or use relative paths.'}
+          tooltip={'Optional log file path. Leave empty to log only to Grafana. Can specify $HOME or use relative paths.'}
         >
           <Input
             id="config-editor-log-path"
