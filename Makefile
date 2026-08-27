@@ -13,10 +13,15 @@ export NODE_PATH=$(shell pwd)/node_modules
 SHELL=bash
 
 # golangci-lint is used for linting the backend
+# govulncheck is used for scanning the backend for known vulnerabilities
 # mage has to be installed
 GO          ?= go
 GOBIN       ?= $(shell $(GO) env GOPATH)/bin
 GOLANGCI    ?= $(GOBIN)/golangci-lint
+GOVULNCHECK ?= $(GOBIN)/govulncheck
+# govulncheck v1.1.4 cannot analyze the go1.27 standard library. Pin the
+# toolchain to the same Go 1.26 line used by the plugin's build and the
+# official plugin validator.
 GOTOOLCHAINVERSION ?= go1.26.6
 PROJECT     ?= grafana-thruk-backend-datasource
 
@@ -111,7 +116,13 @@ tools: | versioncheck
 		echo "installing golangci-lint ..."; \
 		( cd buildtools && $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint ); \
 	fi
+	@if [ ! -x "$(GOVULNCHECK)" ]; then \
+		echo "installing govulncheck ..."; \
+		( cd buildtools && $(GO) install golang.org/x/vuln/cmd/govulncheck ); \
+	fi
 
+govulncheck: tools
+	GOTOOLCHAIN=$(GOTOOLCHAINVERSION) $(GOVULNCHECK) ./...
 
 golangci: tools
 	$(GOLANGCI) version
