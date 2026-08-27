@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	// need a blank import to define the logfmt.
-	_ "github.com/jsternberg/zap-logfmt"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // ErrInvalidLogLevel error type.
@@ -20,10 +20,28 @@ var ErrInvalidLogLevel = errors.New("invalid log level, has to be between [0-7]"
 // ErrCouldNotBuildLogger error type.
 var ErrCouldNotBuildLogger = errors.New("could not build logger from the configuration")
 
-//nolint:funlen // is long, tries to create/touch the file first for possible permission errors
-func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPartial) (*zap.SugaredLogger, error) {
+const (
+	// logMaxSizeMB is the maximum log file size in megabytes before rotation.
+	logMaxSizeMB = 100
+	// logMaxBackups is the number of rotated files to retain.
+	logMaxBackups = 3
+	// logMaxAgeDays is how many days to retain rotated files.
+	logMaxAgeDays = 28
+)
+
+// createFileLogger builds an optional Zap logger that writes to the configured log file.
+// It returns a nil logger and a nil close function when no log path is configured, in which
+// case all logging goes through Grafana's own pipeline via the SDK logger instead.
+//
+//nolint:funlen // expands the path, creates directories and configures rotation before building the logger
+func createFileLogger(jsonData *DatasourceSettingsJSONDataPartial) (*zap.SugaredLogger, func(), error) {
 	if jsonData == nil {
-		return nil, fmt.Errorf("%w , argument: jsonData", ErrArgumentNil)
+		return nil, nil, fmt.Errorf("%w , argument: jsonData", ErrArgumentNil)
+	}
+
+	// Only write a log file when a path is explicitly configured.
+	if jsonData.LogPath == "" {
+		return nil, nil, nil
 	}
 
 	var logLevel zapcore.Level
@@ -45,62 +63,54 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 	case 7:
 		logLevel = zapcore.DebugLevel
 	default:
-		return nil, fmt.Errorf("%w logLevel: %d", ErrInvalidLogLevel, jsonData.LogLevel)
+		return nil, nil, fmt.Errorf("%w logLevel: %d", ErrInvalidLogLevel, jsonData.LogLevel)
 	}
 
-	// if not running on OMD, it will use root /var/log
-	logPath := jsonData.LogPath
-	if logPath == "" {
-		logPath = "${OMD_ROOT}/var/log/grafana/consolmonitoring-thruk-datasource.log"
-	}
-
-	// Expand environment variables and ~ in the path
-	// This can be used with environment variables like ${OMD_ROOT}
-	expandedPath := os.ExpandEnv(logPath)
+	// Expand environment variables and ~ in the path.
+	// This can be used with environment variables like ${OMD_ROOT}.
+	expandedPath := os.ExpandEnv(jsonData.LogPath)
 	expandedPath = os.Expand(expandedPath, func(key string) string {
-		// Handle ~ expansion manually
+		// Handle ~ expansion manually.
 		if key == "~" {
 			home, _ := os.UserHomeDir()
 
 			return home
 		}
-		// Let os.ExpandEnv handle other env vars
+
 		return ""
 	})
 
-	// Create directories if they don't exist
+	// Create directories if they don't exist.
 	dir := filepath.Dir(expandedPath)
 	if dir != "." {
 		//nolint:mnd // permission bits
 		err := os.MkdirAll(dir, 0o0750)
 		if err != nil {
-			return nil, fmt.Errorf("error when making directories for the logfile %q: %w", expandedPath, err)
+			return nil, nil, fmt.Errorf("error when making directories for the logfile %q: %w", expandedPath, err)
 		}
 	}
 
-	filename := expandedPath
-
-	//nolint:gosec,mnd  // filename to open is dynamic due to user input, and that is intended , permission bits
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o0640)
+	// Touch the file eagerly so an unusable path fails here, at datasource creation,
+	// instead of silently on the first write. lumberjack opens the file lazily.
+	//nolint:gosec,mnd // filename to open is dynamic due to user input, and that is intended , permission bits
+	file, err := os.OpenFile(expandedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o0640)
 	if err != nil {
-		return nil, fmt.Errorf("error when opening the logfile %q: %w", filename, err)
+		return nil, nil, fmt.Errorf("error when opening the logfile %q: %w", expandedPath, err)
 	}
 
 	err = file.Close()
 	if err != nil {
-		return nil, fmt.Errorf("error when closing the file descriptor: %w", err)
+		return nil, nil, fmt.Errorf("error when closing the file descriptor: %w", err)
 	}
 
-	config := zap.NewProductionConfig()
+	encoderConfig := zap.NewProductionEncoderConfig()
 
-	config.Encoding = "logfmt" // same format as grafanas own logs
+	encoderConfig.TimeKey = "t"
+	// time.RFC3339Nano is what grafana logfmt uses.
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
 
-	config.EncoderConfig.TimeKey = "t"
-	// time.RFC3339Nano is what grafana logfmt uses
-	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
-
-	config.EncoderConfig.EncodeCaller = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-		// include the function name in the caller field for higher log levels
+	encoderConfig.EncodeCaller = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+		// Include the function name in the caller field for higher log levels.
 		if jsonData.LogLevel >= 4 && caller.Function != "" {
 			enc.AppendString(caller.Function + " (" + caller.TrimmedPath() + ")")
 		} else {
@@ -108,14 +118,27 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 		}
 	}
 
-	config.OutputPaths = append(config.OutputPaths, filename)
-
-	config.Level.SetLevel(logLevel)
-
-	loggerNormal, err := config.Build()
-	if err != nil {
-		return nil, fmt.Errorf("%w, %w", ErrCouldNotBuildLogger, err)
+	// lumberjack rotates the log file so a long-running debug deployment cannot grow it
+	// without bound.
+	rotator := &lumberjack.Logger{
+		Filename:   expandedPath,
+		MaxSize:    logMaxSizeMB,
+		MaxBackups: logMaxBackups,
+		MaxAge:     logMaxAgeDays,
+		LocalTime:  true,
+		Compress:   true,
 	}
 
-	return loggerNormal.Sugar(), nil
+	core := zapcore.NewCore(
+		zaplogfmt.NewEncoder(encoderConfig),
+		zapcore.AddSync(rotator),
+		logLevel,
+	)
+
+	logger := zap.New(core, zap.AddCaller()).Sugar()
+
+	return logger, func() {
+		_ = logger.Sync()
+		_ = rotator.Close()
+	}, nil
 }

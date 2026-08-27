@@ -6,6 +6,7 @@ require (
 	github.com/grafana/grafana-plugin-sdk-go v0.296.3
 	github.com/jsternberg/zap-logfmt v1.3.0
 	go.uber.org/zap v1.28.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (

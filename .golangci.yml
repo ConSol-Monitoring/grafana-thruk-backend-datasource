@@ -60,4 +60,5 @@ linters:
             - "github.com/grafana/grafana-plugin-sdk-go/"
             - "go.uber.org/zap"
             - "github.com/jsternberg/zap-logfmt"
+            - "gopkg.in/natefinch/lumberjack.v2"
             - "github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/pkg/plugin"

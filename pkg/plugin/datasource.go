@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +33,12 @@ type Datasource struct {
 	url        string
 	httpClient *http.Client
 	uid        string
-	logger     *zap.SugaredLogger
+	// sdkLogger sends logs to Grafana's logging pipeline with the datasource context.
+	sdkLogger log.Logger
+	// fileLogger writes to the configured log file, or is nil when no log path is set.
+	fileLogger *zap.SugaredLogger
+	// fileClose flushes and closes the log file, or is nil when no log path is set.
+	fileClose func()
 }
 
 // DatasourceSettingsJSONDataPartial is a partial type to parse backend.DataSourceInstanceSettings.JSONData with
@@ -78,57 +84,77 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		}
 	}
 
-	logger, err := createLoggerFromDatasourceSettings(&jsonDataPartial)
+	fileLogger, fileClose, err := createFileLogger(&jsonDataPartial)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
 
-	logger = logger.With("datasource", settings.UID)
-	logger.Debugf("settings:\n%s", DataSourceInstanceSettingsToString(&settings))
+	closeFile := func() {
+		if fileClose != nil {
+			fileClose()
+		}
+	}
+
+	datasource := &Datasource{
+		url:        datasourceURL,
+		httpClient: nil,
+		uid:        settings.UID,
+		sdkLogger:  log.DefaultLogger.With("datasource", settings.UID),
+		fileLogger: fileLogger,
+		fileClose:  fileClose,
+	}
+
+	datasource.debugf("settings:\n%s", DataSourceInstanceSettingsToString(&settings))
 
 	// SDK provides a way of building http client options directly from context. This sets up a lot of things e.g:
 	// Headers to forward, TLS configuration, Basic HTTP Authentication, Proxy, Timeouts, SigV4
 	httpOpts, err := settings.HTTPClientOptions(ctx)
 	if err != nil {
+		closeFile()
+
 		return nil, fmt.Errorf("failed to get http client options from context: %w", err)
 	}
 
 	HTTPClientOptionsSetDefaults(&httpOpts)
 
-	logger.Debugf("http client options: %s", HTTPClientOptionsToString(httpOpts))
+	datasource.debugf("http client options: %s", HTTPClientOptionsToString(httpOpts))
 
 	provider := httpclient.NewProvider()
 
 	client, err := provider.New(httpOpts)
 	if err != nil {
+		closeFile()
+
 		return nil, fmt.Errorf("could not create http client using provider: %w", err)
 	}
 
-	return &Datasource{
-		url:        datasourceURL,
-		httpClient: client,
-		uid:        settings.UID,
-		logger:     logger,
-	}, nil
+	datasource.httpClient = client
+
+	return datasource, nil
 }
 
 // Dispose function is to be implemented according to the SDK interface.
 func (d *Datasource) Dispose() {
 	// Release cached results that belong to this datasource instance.
 	evictDatasourceResults(d.uid)
+
+	// Flush and close the optional log file.
+	if d.fileClose != nil {
+		d.fileClose()
+	}
 }
 
 // CheckHealth function is to be implemented according to the SDK interface.
 //
 //nolint:funlen
 func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	d.logger.Debugf("checking connection to Thruk")
+	d.debugf("checking connection to Thruk")
 
 	thrukURL := d.url + "/r/v1/thruk?columns=thruk_version"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
-		d.logger.Debugf("failed to create request: %v", err)
+		d.debugf("failed to create request: %v", err)
 
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
@@ -140,15 +166,15 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 	// Forward only the allow-listed authentication headers to Thruk.
 	forwardAuthHeaders(req, checkHealthReq.GetHTTPHeaders())
 
-	d.logger.Debugf("request cookies: %v", cookieNames(req.Header.Values("Cookie")))
-	d.logger.Debugf("HTTP GET %s", thrukURL)
+	d.debugf("request cookies: %v", cookieNames(req.Header.Values("Cookie")))
+	d.debugf("HTTP GET %s", thrukURL)
 
 	start := time.Now()
 	resp, err := d.httpClient.Do(req)
 	elapsed := time.Since(start)
 
 	if err != nil {
-		d.logger.Debugf("connection failed after %v: %v", elapsed, err)
+		d.debugf("connection failed after %v: %v", elapsed, err)
 
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
@@ -159,13 +185,13 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			d.logger.Warnf("error when closing response body: %v", err)
+			d.warnf("error when closing response body: %v", err)
 		}
 	}()
 
 	body, err := readResponseBody(resp.Body)
 	if err != nil {
-		d.logger.Debugf("error when reading response body: %w", err)
+		d.debugf("error when reading response body: %v", err)
 
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
@@ -180,8 +206,8 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 		ThrukVersion string `json:"thruk_version"`
 	}
 
-	d.logger.Debugf("response code: %d, elapsed: %v", resp.StatusCode, elapsed)
-	d.logger.Debugf("response body: %s", string(body))
+	d.debugf("response code: %d, elapsed: %v", resp.StatusCode, elapsed)
+	d.debugf("response body: %s", string(body))
 
 	if resp.StatusCode != http.StatusOK {
 		return &backend.CheckHealthResult{
@@ -193,7 +219,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 
 	err = json.Unmarshal(body, &CheckHealthResponseType)
 	if err != nil {
-		d.logger.Debugf("failed to parse response: %v", err)
+		d.debugf("failed to parse response: %v", err)
 
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
@@ -203,7 +229,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 	}
 
 	if CheckHealthResponseType.ThrukVersion == "" {
-		d.logger.Debugf("no thruk_version in response")
+		d.debugf("no thruk_version in response")
 
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
@@ -212,7 +238,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 		}, nil
 	}
 
-	d.logger.Debugf("connected to Thruk v%s", CheckHealthResponseType.ThrukVersion)
+	d.debugf("connected to Thruk v%s", CheckHealthResponseType.ThrukVersion)
 
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
@@ -223,7 +249,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 
 // QueryData function is to be implemented according to the SDK interface.
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	d.logger.Debugf("received %d queries", len(req.Queries))
+	d.debugf("received %d queries", len(req.Queries))
 
 	results := make([]backend.DataResponse, len(req.Queries))
 
@@ -247,7 +273,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	}
 
 	// responseJSON, _ := response.DeepCopy().MarshalJSON()
-	// d.logger.Debugf("[QueryData] response:\n%v", string(responseJSON))
+	// d.debugf("[QueryData] response:\n%v", string(responseJSON))
 
 	return response, nil
 }
@@ -259,7 +285,7 @@ var ErrResponseBodyRead = errors.New("error when reading response body")
 //
 //nolint:funlen
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
-	d.logger.Debugf("path: %s url: %s", req.Path, req.URL)
+	d.debugf("path: %s url: %s", req.Path, req.URL)
 
 	var thrukPath string
 
@@ -273,7 +299,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	case "columns":
 		parsedURL, err := url.Parse(req.URL)
 		if err != nil {
-			d.logger.Debugf("failed to parse request url")
+			d.debugf("failed to parse request url")
 
 			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
@@ -286,7 +312,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		table := parsedURL.Query().Get("table")
 
 		if table == "" {
-			d.logger.Debugf("missing table parameter")
+			d.debugf("missing table parameter")
 
 			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
@@ -309,7 +335,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	case "variable-query":
 		parsedURL, err := url.Parse(req.URL)
 		if err != nil {
-			d.logger.Debugf("failed to parse request url")
+			d.debugf("failed to parse request url")
 
 			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
@@ -325,7 +351,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		limit := parsedURL.Query().Get("limit")
 
 		if table == "" {
-			d.logger.Debugf("variable-query missing table parameter")
+			d.debugf("variable-query missing table parameter")
 
 			//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 			return sender.Send(&backend.CallResourceResponse{
@@ -359,11 +385,11 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	}
 
 	thrukURL := d.url + thrukPath
-	d.logger.Debugf("GET thrukURL: %s", thrukURL)
+	d.debugf("GET thrukURL: %s", thrukURL)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
-		d.logger.Debugf("failed to create request: %v", err)
+		d.debugf("failed to create request: %v", err)
 
 		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
@@ -385,7 +411,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	elapsed := time.Since(start)
 
 	if err != nil {
-		d.logger.Debugf("request failed after %v: %v", elapsed, err)
+		d.debugf("request failed after %v: %v", elapsed, err)
 
 		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
@@ -398,13 +424,13 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			d.logger.Warnf("error when closing response body: %v", err)
+			d.warnf("error when closing response body: %v", err)
 		}
 	}()
 
 	body, err := readResponseBody(resp.Body)
 	if err != nil {
-		d.logger.Debugf("failed to read response: %v", err)
+		d.debugf("failed to read response: %v", err)
 
 		//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
 		return sender.Send(&backend.CallResourceResponse{
@@ -414,7 +440,7 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		})
 	}
 
-	d.logger.Debugf("response %d (%v, %d bytes)", resp.StatusCode, elapsed, len(body))
+	d.debugf("response %d (%v, %d bytes)", resp.StatusCode, elapsed, len(body))
 
 	//nolint:exhaustruct,wrapcheck // error is handled by the SDK, no need to wrap it
 	return sender.Send(&backend.CallResourceResponse{
@@ -435,4 +461,28 @@ func sendBadRequest(sender backend.CallResourceResponseSender, err error) error 
 	}
 
 	return nil
+}
+
+// debugf logs a formatted debug message to Grafana's logging pipeline and, when a log file is
+// configured, to that file as well.
+func (d *Datasource) debugf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+
+	d.sdkLogger.Debug(msg)
+
+	if d.fileLogger != nil {
+		d.fileLogger.Debug(msg)
+	}
+}
+
+// warnf logs a formatted warning message to Grafana's logging pipeline and, when a log file is
+// configured, to that file as well.
+func (d *Datasource) warnf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+
+	d.sdkLogger.Warn(msg)
+
+	if d.fileLogger != nil {
+		d.fileLogger.Warn(msg)
+	}
 }

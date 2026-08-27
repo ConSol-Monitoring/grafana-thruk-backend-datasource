@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"go.uber.org/zap"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
 func TestSendBadRequest(t *testing.T) {
@@ -61,7 +61,9 @@ func TestQueryData(t *testing.T) {
 		url:        "",
 		httpClient: nil,
 		uid:        "",
-		logger:     zap.NewNop().Sugar(),
+		sdkLogger:  log.NewNullLogger(),
+		fileLogger: nil,
+		fileClose:  nil,
 	}
 
 	resp, err := datasource.QueryData(
@@ -84,5 +86,28 @@ func TestQueryData(t *testing.T) {
 
 	if len(resp.Responses) != 1 {
 		t.Fatal("QueryData must return a response")
+	}
+}
+
+func TestDisposeClosesFileLogger(t *testing.T) {
+	t.Parallel()
+
+	closed := false
+
+	datasource := Datasource{
+		url:        "",
+		httpClient: nil,
+		uid:        "",
+		sdkLogger:  log.NewNullLogger(),
+		fileLogger: nil,
+		fileClose: func() {
+			closed = true
+		},
+	}
+
+	datasource.Dispose()
+
+	if !closed {
+		t.Fatal("expected Dispose to flush and close the file logger")
 	}
 }

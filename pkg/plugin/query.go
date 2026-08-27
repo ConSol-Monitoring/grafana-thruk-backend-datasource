@@ -13,7 +13,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/useragent"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"go.uber.org/zap"
 )
 
 // QueryModel is what a Query from Grafana SDK will contain
@@ -132,7 +131,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	err := json.Unmarshal(query.JSON, &queryModel)
 	if err != nil {
-		datasource.logger.Debugf("refId=%s unmarshal error: %v", query.RefID, err)
+		datasource.debugf("refId=%s unmarshal error: %v", query.RefID, err)
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
@@ -152,13 +151,13 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	queryMetadata.App = queryModel.App
 	queryMetadata.RequestURL = queryModel.RequestURL
 
-	datasource.logger.Debugf("%s refId=%s table=%s columns=%v condition=%q limit=%d type=%v",
+	datasource.debugf("%s refId=%s table=%s columns=%v condition=%q limit=%d type=%v",
 		queryMetadata.String(), query.RefID, queryModel.Table, queryModel.Columns, queryModel.Condition, queryModel.Limit, queryModel.Type)
 
 	rewriteAliasedEndpointsChanged := rewriteAliasedEndpoints(&queryModel)
 
 	if rewriteAliasedEndpointsChanged {
-		datasource.logger.Debugf("rewritten refId=%s table=%s columns=%v condition=%q limit=%d type=%v",
+		datasource.debugf("rewritten refId=%s table=%s columns=%v condition=%q limit=%d type=%v",
 			query.RefID, queryModel.Table, queryModel.Columns, queryModel.Condition, queryModel.Limit, queryModel.Type)
 	}
 
@@ -166,18 +165,18 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	cachedResult, err := getCachedResult(&queryModel, datasource.uid, thrukURL, queryMetadata.authHeaders)
 	if err != nil {
-		datasource.logger.Debugf("refId=%s error when getting cached result: %s", query.RefID, err.Error())
+		datasource.debugf("refId=%s error when getting cached result: %s", query.RefID, err.Error())
 	}
 
 	if cachedResult != nil {
-		datasource.logger.Debugf("refId=%s found and using cached result for query %s", query.RefID, thrukURL)
+		datasource.debugf("refId=%s found and using cached result for query %s", query.RefID, thrukURL)
 
 		return *cachedResult.result
 	}
 
 	thrukReq, err := http.NewRequestWithContext(ctx, http.MethodGet, thrukURL, nil)
 	if err != nil {
-		datasource.logger.Debugf("refId=%s failed to create request: %v", query.RefID, err)
+		datasource.debugf("refId=%s failed to create request: %v", query.RefID, err)
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to create request: %v", err))
 	}
@@ -188,44 +187,44 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	// Grafana controls which of these reach the plugin via the allowed-cookie list and OAuth identity forwarding.
 	forwardAuthHeaders(thrukReq, backendReq.GetHTTPHeaders())
 
-	datasource.logger.Debugf("refId=%s HTTP GET %s", query.RefID, thrukURL)
+	datasource.debugf("refId=%s HTTP GET %s", query.RefID, thrukURL)
 
 	start := time.Now()
 	resp, err := datasource.httpClient.Do(thrukReq)
 	elapsed := time.Since(start)
 
 	if err != nil {
-		datasource.logger.Debugf("refId=%s request failed after %v: %v", query.RefID, elapsed, err)
+		datasource.debugf("refId=%s request failed after %v: %v", query.RefID, elapsed, err)
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("request failed: %v", err))
 	}
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			datasource.logger.Warnf("error when closing response reader: %w", err)
+			datasource.warnf("error when closing response reader: %v", err)
 		}
 	}()
 
 	body, err := readResponseBody(resp.Body)
 	if err != nil {
-		datasource.logger.Debugf("refId=%s failed to read response: %v", query.RefID, err)
+		datasource.debugf("refId=%s failed to read response: %v", query.RefID, err)
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to read response: %v", err))
 	}
 
-	datasource.logger.Debugf("refId=%s response code: %d %s, elapsed: %v, bytes: %d", query.RefID, resp.StatusCode, resp.Status, elapsed, len(body))
+	datasource.debugf("refId=%s response code: %d %s, elapsed: %v, bytes: %d", query.RefID, resp.StatusCode, resp.Status, elapsed, len(body))
 
 	if resp.StatusCode != http.StatusOK {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("thruk returned status: %d , body: %s", resp.StatusCode, string(body)))
 	}
 
 	parseStart := time.Now()
-	result := parseThrukResponse(body, queryModel, query.TimeRange, datasource.logger)
-	datasource.logger.Debugf("refId=%s parsed in %v", query.RefID, time.Since(parseStart))
+	result := parseThrukResponse(body, queryModel, query.TimeRange, datasource)
+	datasource.debugf("refId=%s parsed in %v", query.RefID, time.Since(parseStart))
 
 	err = writeCachedResult(&queryModel, datasource.uid, thrukURL, queryMetadata.authHeaders, &result)
 	if err != nil {
-		datasource.logger.Debugf("refId=%s error when writing cached result: %s", query.RefID, err.Error())
+		datasource.debugf("refId=%s error when writing cached result: %s", query.RefID, err.Error())
 	}
 
 	return result
@@ -260,7 +259,7 @@ func buildQueryURL(datasource *Datasource, queryModel QueryModel) string {
 // The "data" field of the json can either be an array of JSON objects or simply a single JSON object .
 //
 //nolint:nestif
-func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.TimeRange, logger *zap.SugaredLogger) backend.DataResponse {
+func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.TimeRange, datasource *Datasource) backend.DataResponse {
 	var thrukResp ThrukWrappedJSONResponse
 
 	// Try wrapped_json format first: { "data": <array|object> , "meta": {...} }
@@ -296,7 +295,7 @@ func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.Ti
 
 			err := json.Unmarshal(body, &singleJSONObject)
 			if err != nil {
-				logger.Debugf("failed to parse response: %v", err)
+				datasource.debugf("failed to parse response: %v", err)
 
 				return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to parse response: %v", err))
 			}
@@ -306,7 +305,7 @@ func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.Ti
 	}
 
 	if len(thrukResp.Data) == 0 {
-		logger.Debugf("empty response, 0 rows returned")
+		datasource.debugf("empty response, 0 rows returned")
 		//nolint: exhaustruct_v5
 		return backend.DataResponse{Frames: data.Frames{data.NewFrame("response")}}
 	}
@@ -314,17 +313,17 @@ func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.Ti
 	visType := parseVisualizationType(queryModel.Type)
 
 	if visType == "graph" {
-		return buildTimeseriesFrames(&thrukResp, timeRange, queryModel, logger)
+		return buildTimeseriesFrames(&thrukResp, timeRange, queryModel, datasource)
 	}
 
-	return buildTableFrame(&queryModel, &thrukResp, visType, logger)
+	return buildTableFrame(&queryModel, &thrukResp, visType, datasource)
 }
 
 // This function assumes that thrukResponse.Data is of type []map[string]any
 // Even when the response was a single object, it is converted in parseThrukResponse into []map[string]any .
 //
 //nolint:funlen
-func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visType string, logger *zap.SugaredLogger) backend.DataResponse {
+func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visType string, datasource *Datasource) backend.DataResponse {
 	// add known query types from query model and columns
 	overrideKnownGrafanaDataTypes(qm, thrukResp.Meta)
 
@@ -341,7 +340,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 		field := data.NewFieldFromFieldType(fieldType, 0)
 		field.Name = col
 
-		logger.Debugf("building column: %s, fieldType: %q, specifiedType: %q, inferred: %t", col, FieldTypeToString(fieldType), specifiedType, inferred)
+		datasource.debugf("building column: %s, fieldType: %q, specifiedType: %q, inferred: %t", col, FieldTypeToString(fieldType), specifiedType, inferred)
 
 		for _, row := range thrukResp.Data {
 			val := row[col]
@@ -425,7 +424,7 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 		frame.Fields = append(frame.Fields, field)
 	}
 
-	logger.Debugf("table: %d rows, %d columns", len(thrukResp.Data), len(columns))
+	datasource.debugf("table: %d rows, %d columns", len(thrukResp.Data), len(columns))
 	//nolint: exhaustruct_v5
 	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisType(visType)}
 	//nolint: exhaustruct_v5
@@ -464,7 +463,7 @@ func determineTableFieldType(thrukResp *ThrukWrappedJSONResponse, columnName str
 // The value is spread across 10 evenly-spaced time points covering the query's time range.
 //
 //nolint:funlen
-func buildTimeseriesFrames(thrukResp *ThrukWrappedJSONResponse, timeRange backend.TimeRange, queryModel QueryModel, logger *zap.SugaredLogger) backend.DataResponse {
+func buildTimeseriesFrames(thrukResp *ThrukWrappedJSONResponse, timeRange backend.TimeRange, queryModel QueryModel, datasource *Datasource) backend.DataResponse {
 	const steps = 10
 
 	from := timeRange.From.Unix()
@@ -519,7 +518,7 @@ func buildTimeseriesFrames(thrukResp *ThrukWrappedJSONResponse, timeRange backen
 		}
 	}
 
-	logger.Debugf("timeseries: %d rows, valueCol=%s, nameCols=%v", len(dataRows), valueCol, nameCols)
+	datasource.debugf("timeseries: %d rows, valueCol=%s, nameCols=%v", len(dataRows), valueCol, nameCols)
 
 	var frames data.Frames = make([]*data.Frame, 0, len(dataRows))
 	for _, row := range dataRows {
