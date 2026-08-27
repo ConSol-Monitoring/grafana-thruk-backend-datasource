@@ -17,18 +17,20 @@ func TestRewriteAliasedEndpoints(t *testing.T) {
 		{name: "not an alias", table: "/hosts", wantTable: "/hosts", wantChanged: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryModel := QueryModel{Table: tt.table}
+			//nolint:exhaustruct_v5 // only the table participates in alias rewriting
+			queryModel := QueryModel{Table: testCase.table}
+
 			changed := rewriteAliasedEndpoints(&queryModel)
-			if changed != tt.wantChanged {
-				t.Fatalf("rewriteAliasedEndpoints() changed = %t, want %t", changed, tt.wantChanged)
+			if changed != testCase.wantChanged {
+				t.Fatalf("rewriteAliasedEndpoints() changed = %t, want %t", changed, testCase.wantChanged)
 			}
 
-			if queryModel.Table != tt.wantTable {
-				t.Fatalf("rewriteAliasedEndpoints() table = %q, want %q", queryModel.Table, tt.wantTable)
+			if queryModel.Table != testCase.wantTable {
+				t.Fatalf("rewriteAliasedEndpoints() table = %q, want %q", queryModel.Table, testCase.wantTable)
 			}
 		})
 	}

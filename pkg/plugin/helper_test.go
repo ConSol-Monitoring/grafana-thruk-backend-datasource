@@ -13,10 +13,10 @@ func TestValidateAPIPath(t *testing.T) {
 		path    string
 		wantErr error
 	}{
-		{name: "root", path: "/"},
-		{name: "relative endpoint", path: "hosts"},
-		{name: "nested endpoint", path: "/hosts/example"},
-		{name: "escaped space", path: "/hosts/example%20host"},
+		{name: "root", path: "/", wantErr: nil},
+		{name: "relative endpoint", path: "hosts", wantErr: nil},
+		{name: "nested endpoint", path: "/hosts/example", wantErr: nil},
+		{name: "escaped space", path: "/hosts/example%20host", wantErr: nil},
 		{name: "empty", path: "", wantErr: ErrInvalidAPIPath},
 		{name: "query string", path: "/hosts?limit=1", wantErr: ErrInvalidAPIPath},
 		{name: "raw traversal", path: "../config", wantErr: ErrAPIPathEscapes},
@@ -29,17 +29,17 @@ func TestValidateAPIPath(t *testing.T) {
 		{name: "invalid escape", path: "/hosts/%zz", wantErr: ErrInvalidAPIPath},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateAPIPath(tt.path)
-			if tt.wantErr == nil && err != nil {
-				t.Fatalf("validateAPIPath(%q) returned unexpected error: %v", tt.path, err)
+			err := validateAPIPath(testCase.path)
+			if testCase.wantErr == nil && err != nil {
+				t.Fatalf("validateAPIPath(%q) returned unexpected error: %v", testCase.path, err)
 			}
 
-			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
-				t.Fatalf("validateAPIPath(%q) error = %v, want %v", tt.path, err, tt.wantErr)
+			if testCase.wantErr != nil && !errors.Is(err, testCase.wantErr) {
+				t.Fatalf("validateAPIPath(%q) error = %v, want %v", testCase.path, err, testCase.wantErr)
 			}
 		})
 	}

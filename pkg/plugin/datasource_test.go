@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -14,6 +15,7 @@ func TestSendBadRequest(t *testing.T) {
 	t.Parallel()
 
 	var sentResponse *backend.CallResourceResponse
+
 	sender := backend.CallResourceResponseSenderFunc(func(response *backend.CallResourceResponse) error {
 		sentResponse = response
 
@@ -41,7 +43,7 @@ func TestSendBadRequest(t *testing.T) {
 func TestSendBadRequestReturnsSenderError(t *testing.T) {
 	t.Parallel()
 
-	wantErr := errors.New("send failed")
+	wantErr := fmt.Errorf("test sender failure: %w", ErrInvalidAPIPath)
 	sender := backend.CallResourceResponseSenderFunc(func(_ *backend.CallResourceResponse) error {
 		return wantErr
 	})
