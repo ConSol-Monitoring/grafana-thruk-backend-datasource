@@ -184,11 +184,9 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	thrukReq.Header.Set("X-Thruk-Outputformat", "wrapped_json")
 
-	// httpClient is set to forward cookies, and datasource is configured to add 'thruk_auth' to fowarded cookies list by default
-	// set the Cookie explicitly again to be safe
-	if cookies := queryMetadata.authHeaders["Cookie"]; len(cookies) > 0 {
-		thrukReq.Header.Set("Cookie", strings.Join(cookies, "; "))
-	}
+	// Forward only the allow-listed authentication headers (Cookie, Authorization, X-Id-Token).
+	// Grafana controls which of these reach the plugin via the allowed-cookie list and OAuth identity forwarding.
+	forwardAuthHeaders(thrukReq, backendReq.GetHTTPHeaders())
 
 	datasource.logger.Debugf("refId=%s HTTP GET %s", query.RefID, thrukURL)
 

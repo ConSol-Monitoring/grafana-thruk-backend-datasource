@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -94,11 +95,26 @@ func cookieNames(cookieHeaderValues []string) []string {
 	return names
 }
 
+// forwardAuthHeaders copies the explicitly allow-listed authentication headers from the incoming
+// Grafana request onto the outgoing Thruk request. Headers that are not in the allow-list are never
+// forwarded, so unrelated Grafana identity or tracing headers cannot reach the Thruk server.
+func forwardAuthHeaders(outReq *http.Request, inHeaders http.Header) {
+	allowedHeaders := []string{"Cookie", "Authorization", "X-Id-Token"}
+
+	for _, name := range allowedHeaders {
+		for _, value := range inHeaders.Values(name) {
+			outReq.Header.Add(name, value)
+		}
+	}
+}
+
 // HTTPClientOptionsSetDefaults ensures some http Client settings are the way that this datasource requires
 // Intended to be run to modify http Client that backend.DatasourceInstanceSettings.HTTPClientOpts(ctx) generates.
 func HTTPClientOptionsSetDefaults(opts *httpclient.Options) {
-	// Always forward the headers, this is how 'thruk_auth' cookies should be passed
-	opts.ForwardHTTPHeaders = true
+	// Disable the SDK's blanket header forwarding. The plugin copies an explicit allow-list of
+	// authentication headers (Cookie, Authorization, X-Id-Token) onto each upstream request itself,
+	// so unrelated Grafana headers are never sent to Thruk.
+	opts.ForwardHTTPHeaders = false
 
 	// Modify some of the timeouts and other settings. golang-sdk still calls this struct TimeoutOpts
 	// These end up in the golang http.Transport

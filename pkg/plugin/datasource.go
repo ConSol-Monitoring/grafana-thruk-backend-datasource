@@ -120,7 +120,7 @@ func (d *Datasource) Dispose() {
 // CheckHealth function is to be implemented according to the SDK interface.
 //
 //nolint:funlen
-func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	d.logger.Debugf("checking connection to Thruk")
 
 	thrukURL := d.url + "/r/v1/thruk?columns=thruk_version"
@@ -135,6 +135,9 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 			JSONDetails: []byte{},
 		}, nil
 	}
+
+	// Forward only the allow-listed authentication headers to Thruk.
+	forwardAuthHeaders(req, checkHealthReq.GetHTTPHeaders())
 
 	d.logger.Debugf("request cookies: %v", cookieNames(req.Header.Values("Cookie")))
 	d.logger.Debugf("HTTP GET %s", thrukURL)
@@ -372,6 +375,9 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 	for k, v := range extraHeaders {
 		httpReq.Header.Set(k, v)
 	}
+
+	// Forward only the allow-listed authentication headers to Thruk.
+	forwardAuthHeaders(httpReq, req.GetHTTPHeaders())
 
 	start := time.Now()
 	resp, err := d.httpClient.Do(httpReq)
