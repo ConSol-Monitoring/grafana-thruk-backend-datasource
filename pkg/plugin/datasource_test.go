@@ -2,11 +2,55 @@ package plugin
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"go.uber.org/zap"
 )
+
+func TestSendBadRequest(t *testing.T) {
+	t.Parallel()
+
+	var sentResponse *backend.CallResourceResponse
+	sender := backend.CallResourceResponseSenderFunc(func(response *backend.CallResourceResponse) error {
+		sentResponse = response
+
+		return nil
+	})
+
+	err := sendBadRequest(sender, ErrInvalidAPIPath)
+	if err != nil {
+		t.Fatalf("sendBadRequest() returned unexpected error: %v", err)
+	}
+
+	if sentResponse == nil {
+		t.Fatal("sendBadRequest() did not send a response")
+	}
+
+	if sentResponse.Status != http.StatusBadRequest {
+		t.Fatalf("sendBadRequest() status = %d, want %d", sentResponse.Status, http.StatusBadRequest)
+	}
+
+	if string(sentResponse.Body) != ErrInvalidAPIPath.Error() {
+		t.Fatalf("sendBadRequest() body = %q, want %q", sentResponse.Body, ErrInvalidAPIPath.Error())
+	}
+}
+
+func TestSendBadRequestReturnsSenderError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("send failed")
+	sender := backend.CallResourceResponseSenderFunc(func(_ *backend.CallResourceResponse) error {
+		return wantErr
+	})
+
+	err := sendBadRequest(sender, ErrInvalidAPIPath)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("sendBadRequest() error = %v, want wrapped %v", err, wantErr)
+	}
+}
 
 func TestQueryData(t *testing.T) {
 	t.Parallel()

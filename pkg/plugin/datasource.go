@@ -418,9 +418,14 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 }
 
 func sendBadRequest(sender backend.CallResourceResponseSender, err error) error {
-	return fmt.Errorf("send bad request response: %w", sender.Send(&backend.CallResourceResponse{
+	sendErr := sender.Send(&backend.CallResourceResponse{
 		Status:  http.StatusBadRequest,
 		Body:    []byte(err.Error()),
 		Headers: map[string][]string{},
-	}))
+	})
+	if sendErr != nil {
+		return fmt.Errorf("send bad request response: %w", sendErr)
+	}
+
+	return nil
 }
