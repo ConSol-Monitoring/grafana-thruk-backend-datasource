@@ -20,6 +20,7 @@ export class DataSource extends DataSourceWithBackend<ThrukQuery, ThrukDataSourc
   constructor(instanceSettings: DataSourceInstanceSettings<ThrukDataSourceOptions>) {
     super(instanceSettings);
     this.url = instanceSettings.url || '';
+    this.annotations = {}
   }
 
   query(request: DataQueryRequest<ThrukQuery>): Observable<DataQueryResponse> {
