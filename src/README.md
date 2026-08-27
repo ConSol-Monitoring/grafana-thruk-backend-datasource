@@ -26,7 +26,7 @@ Add a new datasource and select `consolmonitoring-thruk-datasource`.
 - Set the URL to your Thruk instance, ex. for OMD Thruk `https://<host>/<sitename>/thruk`
 - Configure authentication (basic auth or a Thruk API key) as needed
 - For Grafana OMD usage, cookie authentication through existing thruk_auth works as well.
-- Log Level and Log Path can be adjusted in the advanced settings
+- Log Level and Log Path can be adjusted in the advanced settings. By default logs go to Grafana's own log output; configure a Log Path to additionally write to a file (rotated automatically).
 
 ## Query Types
 
