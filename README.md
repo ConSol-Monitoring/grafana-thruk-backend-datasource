@@ -1,160 +1,129 @@
-# Thruk Grafana Datasource - a Grafana backend datasource using Thruks REST API
+# Thruk Datasource with Backend
 
-![Thruk Grafana Backend Datasource](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/src/img/screenshot.png "Thruk Grafana Datasource")
+![Thruk Datasource query editor](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/src/img/screenshot.png)
 
-This is an updated version of Thruk Grafana Datasource with Backend Components.
+Thruk Datasource with Backend connects Grafana to the [Thruk](https://www.thruk.org/) REST API. Use it to query and visualize monitoring data from OMD and Thruk instances in tables, stat and pie-chart panels, dashboard variables, and annotations. The plugin includes a backend component and supports Grafana alerting.
 
-## Installation
+## Requirements
 
-Search for `thruk` in the Grafana plugins directory, and be sure to pick the plugin with Backend
+- Grafana 12.3.0 or later.
+- A reachable Thruk or OMD instance with its REST API enabled.
+- Credentials that are permitted to query the target Thruk instance. The datasource supports basic authentication, `thruk_auth` based cookie authentication and API key authentication using the `X-Thruk-Auth-Key` header.
 
-Alternatively use the grafana-cli command. The ID of the plugin is consolmonitoring-thruk-datasource
+## Getting Started
 
-    %> grafana-cli plugins install consolmonitoring-thruk-datasource
+1. In Grafana, open **Connections** > **Add new connection**, search for `thruk`, and select **Thruk Datasource with Backend**.
+2. Enter the base URL of your Thruk instance, for example `https://example.com/sitename/thruk` for an OMD site.
+3. Configure the authentication required by that instance, then select **Save & test**.
+4. Create a panel and select the datasource. Choose a REST path and the columns to display, or enter a Thruk query.
 
-Also [OMD-Labs](https://labs.consol.de/omd/) will soon come with this datasource included, so when you use OMD-Labs, the plugin will be already included.
+To install from the command line, run:
 
-Otherwise follow these steps:
+```sh
+grafana cli plugins install consolmonitoring-thruk-datasource
+```
 
-    %> cd var/grafana/plugins
-    %> git clone -b release-<tag> https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource
-    %> make build
-    %> restart grafana
+Restart Grafana after installing the plugin. The plugin ships separately from OMD currently, so it is not included in [OMD-Labs](https://labs.consol.de/omd/) Grafana installations.
 
-## Create Datasource
+## Querying Thruk
 
-Add a new datasource and select: consolmonitoring-thruk-datasource
+### Table queries
 
-Use the Grafana proxy if needed.
+Use a table panel to display data returned by the REST API. Text, numbers, and timestamps are supported. Support for nested data structures is limited.
 
-- Type 'Thruk'
-- Url to Thruk, ex.: <https://localhost/sitename/thruk>
+Choose the REST path to query, then select the columns to display. Aggregation functions can be added and affect the following column.
 
-## Table Queries
+### Variable queries
 
-Using the table panel, you can display most data from the rest api. However only text, numbers and timestamps can be displayed in a sane way.
-Support for nested data structures is limited.
+Use Thruk REST API queries to populate Grafana dashboard variables. For example, to return the hosts in a host group:
 
-Select the rest path from where you want to display data. Then choose all columns. Aggregation functions can be added as well and always affect the column following afterwards.
+```sql
+SELECT name FROM hosts WHERE groups >= 'linux'
+```
 
-## Variable Queries
+### Annotation queries
 
-Thruks Rest api can be used to fill grafana variables. For example to get all hosts of a certain hostgroup, use this example query:
+Use annotation queries to add log-file entries to graphs. Annotations are shared by all panels in a dashboard. Include a time filter in every annotation query.
 
-    SELECT name FROM hosts WHERE groups >= 'linux'
+![Annotations editor](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/annotations.png)
 
-This is used when picking variables in Dashboard setups automatically.
+### Stat and pie-chart queries
 
-## Annotation Queries
+Use REST endpoints that return aggregated values, or aggregation functions such as `avg`, `sum`, `min`, `max`, and `count`, with stat panels.
 
-Annotation queries can be used to add logfile entries into your graphs.
-Please note that annotations are shared across all graphs in a dashboard.
+For pie charts, use either a two-column result (`name`, `value`) or a single row containing numeric values. For example:
 
-It is important to use at least a time filter.
+```sql
+SELECT count() state, state FROM /hosts
+```
 
-![Annotations](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/annotations.png "Annotations Editor")
+![Pie chart](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/piechart.png)
 
-## Single Stat Queries
+### Dashboard variables and time filters
 
-Single stats are best used with REST endpoints which return aggregated values
-already or use aggregation functions like, `avg`, `sum`, `min`, `max` or `count`.
+Dashboard variables can be used in queries. For a variable named `host`, reference it as `$host`:
 
-## Timeseries based panels
+```sql
+SELECT time, message FROM /hosts/$host/alerts WHERE time = $time
+```
 
-Althouth Thruk isn't a timeseries databases und usually only returns table data, some queries can be converted to fake timeseries if the panel cannot handle table data.
+The special form `field = $time` is expanded to `(field >= starttime AND field <= endtime)`, restricting results to the dashboard time range. The preceding query is equivalent to:
 
-This is done according to the preferred visualization type that the panel recommends.
+```sql
+SELECT time, message FROM /alerts WHERE host_name = "$host" AND time = $time
+```
 
-You can either use queries which have 2 columns (name, value) or queries which only return a single result row with numeric values only.
+![Variables editor](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/variables.png)
 
-### Statistic Data Pie Chart
+## Documentation
 
-For example the pie chart plugin can be used with stats queries like this:
-
-    SELECT count() state, state FROM /hosts
-
-The query is expected to fetch 2 columns. The first is the value, the second is the name.
-
-### Single Host Pie Chart
-
-Ex.: Use statistics data for a single host to put it into a pie chart:
-
-    SELECT num_services_ok, num_services_warn, num_services_crit, num_services_unknown FROM /hosts WHERE name = '$name' LIMIT 1
-
-![Pie Chart](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/piechart.png "Pie Chart")
-
-## Using Variables
-
-Dashboard variables can be used in almost all queries. For example if you
-define a dashboard variable named `host` you can then use `$host` in your
-queries.
-
-There is a special syntax for time filter: `field = $time` which will be
-replaced by `(field >= starttime AND field <= endtime)`. This can be used to
-reduce results to the dashboards timeframe.
-
-    SELECT time, message FROM /hosts/$host/alerts WHERE time = $time
-
-which is the same as
-
-    SELECT time, message FROM /alerts WHERE host_name = "$host" AND time = $time
-
-![Variables](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/variables.png "Variables Editor")
+- [Thruk project documentation](https://www.thruk.org/documentation.html)
+- [Grafana data source documentation](https://grafana.com/docs/grafana/latest/datasources/)
+- [Plugin repository](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource)
 
 ## Development
 
-To test and improve the plugin you can run Grafana instance in Docker using following command (in the source directory of this plugin)
+For a local source installation, clone the repository and build the plugin:
 
-This is a backend-enabled plugin, which means that appropiate go version according to go.mod has to be installed.
+```sh
+git clone https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource.git
+cd grafana-thruk-backend-datasource
+make build
+make dev
+```
 
-  %> make build
-  %> make dev
+Development requires Docker, Node.js 24 for the containerized frontend build, and Go 1.27 or later for the backend build. The development Grafana instance is available at [http://localhost:3000](http://localhost:3000) after running `make dev`. Run `make build` once before starting the development container, then add the datasource manually.
 
-This will start a grafana container and a build watcher which updates the plugin is the dist/ folder.
+The development environment provisions a datasource connected to `demo.thruk.org` and a dashboard using it.
 
-The dev instance can be accessed at <http://localhost:3000>
+![Provisioned demo datasource](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/provisioned-demo-thruk-org.png)
 
-Note: You need to add the datasource manually and you need to run "make build" once before starting the dev container, otherwise Grafana won't find the datasource.
+![Provisioned demo dashboard](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/provisioned-demo-thruk-dashboard.png)
 
-After starting the container, you should see one datasource already up, which should be connected to demo.thruk.org:
+For testing, the a public Thruk demo instance is available at [https://demo.thruk.org/demo/thruk/](https://demo.thruk.org/demo/thruk/) with basic-auth credentials `test` / `test`. The `provisioning/datasources/datasources.yml` file also contains commented examples for basic authentication and the `X-Thruk-Auth-Key` header to start off as well.
 
-![Provisioned demo.thruk.org](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/provisioned-demo-thruk-org.png)
+### Maintainer release process
 
-There is already a provisioned dashboard using this datasource
+Update the version in `package.json` and `CHANGELOG.md`, commit and tag the release, then build and sign the archive:
 
-![Provisioned demo.thruk.org dashboard](![alt text](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/provisioned-demo-thruk-dashboard.png))
+```sh
+export RELVERSION=1.0.7
+export GRAFANA_ACCESS_POLICY_TOKEN=...
+git commit -am "Release v${RELVERSION}"
+git tag -a "v${RELVERSION}" -m "Create release tag v${RELVERSION}"
+make GRAFANA_ACCESS_POLICY_TOKEN="${GRAFANA_ACCESS_POLICY_TOKEN}" releasebuild
+```
 
-The grafana widget documentation is available here: <https://developers.grafana.com/ui/latest/>
+Create the GitHub release and submit the plugin update through the [Grafana Plugins Admin page](https://grafana.com/orgs/consolmonitoring/plugins).
 
-More information about the backend plugins are available here: <https://grafana.com/developers/plugin-tools/key-concepts/backend-plugins/>
+## Contributing and support
 
-### Testing
+Contributions and bug reports are welcome. Please open an issue or pull request in the [GitHub repository](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource). Include your Grafana version, Thruk version, datasource configuration with secrets removed, and steps to reproduce any issue.
 
-For testing you can use the provisioned demo Thruk instance at:
+## License
 
-- URL: <https://demo.thruk.org/demo/thruk/>
-- Basic Auth: test / test
-
-In the provisioning/datasources/datasources.yml , there are two commented out example datasources:
-
-First one uses basic Auth to connect to a OMD Thruk instance
-
-Second one uses Thruk API key using X-Thruk-Auth-Key header.
-
-### Create Release
-
-How to create a new release:
-
-    %> export RELVERSION=1.0.7
-    %> export GRAFANA_ACCESS_POLICY_TOKEN=...
-    %> vi package.json # replace version
-    %> vi CHANGELOG.md # add changelog entry
-    %> git commit -am "Release v${RELVERSION}"
-    %> git tag -a v${RELVERSION} -m "Create release tag v${RELVERSION}"
-    %> make GRAFANA_ACCESS_POLICY_TOKEN=${GRAFANA_ACCESS_POLICY_TOKEN} releasebuild
-    # create release here https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/releases/new
-    # submit plugin update here https://grafana.com/orgs/consolmonitoring/plugins
+This project is licensed under the [MIT License](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/blob/master/LICENSE).
 
 ## Changelog
 
-see CHANGELOG.md
+See [CHANGELOG.md](https://github.com/ConSol-Monitoring/grafana-thruk-backend-datasource/blob/master/CHANGELOG.md).
