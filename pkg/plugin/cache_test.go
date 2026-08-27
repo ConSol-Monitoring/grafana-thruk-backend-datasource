@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
@@ -11,6 +13,23 @@ import (
 func queryModelFor(table string) *QueryModel {
 	//nolint:exhaustruct_v5 // only the table participates in cache policy lookups
 	return &QueryModel{Table: table}
+}
+
+// resetCache clears the global cache. Tests that assert on global cache state (size, eviction
+// order) use this and therefore do not run in parallel with each other.
+func resetCache() {
+	cachedResultsMutex.Lock()
+	cachedResults = map[cacheKey]*CachedResult{}
+	cacheOrder = nil
+	cachedResultsMutex.Unlock()
+}
+
+// cacheSize returns the number of entries currently held by the global cache.
+func cacheSize() int {
+	cachedResultsMutex.RLock()
+	defer cachedResultsMutex.RUnlock()
+
+	return len(cachedResults)
 }
 
 func TestAuthScopeNormalization(t *testing.T) {
@@ -112,6 +131,139 @@ func TestCacheEmptyAuthOnlyIndex(t *testing.T) {
 	_, err = getCachedResult(queryModelFor("/index"), uid, thrukURL, hdr)
 	if err == nil {
 		t.Fatal("expected cache miss for authenticated request against an empty-auth entry")
+	}
+}
+
+//nolint:paralleltest // mutates the global cache and asserts on its state
+func TestCacheReplacement(t *testing.T) {
+	resetCache()
+
+	thrukURL := "https://thruk.example.com/r/v1/replacement"
+	uid := "ds-replacement"
+
+	//nolint: exhaustruct_v5
+	first := &backend.DataResponse{Status: backend.StatusOK}
+	//nolint: exhaustruct_v5
+	second := &backend.DataResponse{Status: backend.StatusBadGateway}
+
+	err := writeCachedResult(queryModelFor("/index"), uid, thrukURL, nil, first)
+	if err != nil {
+		t.Fatalf("write first: %v", err)
+	}
+
+	err = writeCachedResult(queryModelFor("/index"), uid, thrukURL, nil, second)
+	if err != nil {
+		t.Fatalf("write second: %v", err)
+	}
+
+	entries := cacheSize()
+	if entries != 1 {
+		t.Fatalf("expected a single cache entry after writing the same key twice, got %d", entries)
+	}
+
+	got, err := getCachedResult(queryModelFor("/index"), uid, thrukURL, nil)
+	if err != nil {
+		t.Fatalf("expected cache hit: %v", err)
+	}
+
+	if got.result.Status != backend.StatusBadGateway {
+		t.Fatalf("expected the latest result to win, got status %v", got.result.Status)
+	}
+}
+
+//nolint:paralleltest // mutates the global cache and asserts on its size
+func TestCacheCapacityEviction(t *testing.T) {
+	resetCache()
+
+	uid := "ds-capacity"
+
+	for i := range maxCachedResults + 1 {
+		thrukURL := fmt.Sprintf("https://thruk.example.com/r/v1/%d", i)
+		//nolint: exhaustruct_v5
+		err := writeCachedResult(queryModelFor("/index"), uid, thrukURL, nil, &backend.DataResponse{})
+		if err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+	}
+
+	entries := cacheSize()
+	if entries != maxCachedResults {
+		t.Fatalf("expected cache size %d after overflow, got %d", maxCachedResults, entries)
+	}
+
+	_, err := getCachedResult(queryModelFor("/index"), uid, "https://thruk.example.com/r/v1/0", nil)
+	if err == nil {
+		t.Fatal("expected the oldest entry to have been evicted")
+	}
+
+	newest := fmt.Sprintf("https://thruk.example.com/r/v1/%d", maxCachedResults)
+
+	_, err = getCachedResult(queryModelFor("/index"), uid, newest, nil)
+	if err != nil {
+		t.Fatal("expected the newest entry to still be cached")
+	}
+}
+
+//nolint:paralleltest // mutates the global cache and asserts on its state
+func TestCacheExpiryCleanup(t *testing.T) {
+	resetCache()
+
+	thrukURL := "https://thruk.example.com/r/v1/expiry"
+	uid := "ds-expiry"
+
+	key := cacheKey{datasourceUID: uid, thrukURL: thrukURL, authScope: ""}
+
+	cachedResultsMutex.Lock()
+	cachedResults[key] = &CachedResult{
+		//nolint: exhaustruct_v5
+		result:         &backend.DataResponse{},
+		expirationTime: time.Now().Add(-time.Minute),
+	}
+	cacheOrder = append(cacheOrder, key)
+	cachedResultsMutex.Unlock()
+
+	cleanupExpiredResults()
+
+	_, err := getCachedResult(queryModelFor("/index"), uid, thrukURL, nil)
+	if err == nil {
+		t.Fatal("expected expired entry to be removed by cleanup")
+	}
+
+	entries := cacheSize()
+	if entries != 0 {
+		t.Fatalf("expected cache to be empty after cleanup, got %d entries", entries)
+	}
+}
+
+//nolint:paralleltest // mutates the global cache and asserts on its state
+func TestEvictDatasourceResults(t *testing.T) {
+	resetCache()
+
+	uidA := "ds-evict-a"
+	uidB := "ds-evict-b"
+
+	//nolint: exhaustruct_v5
+	err := writeCachedResult(queryModelFor("/index"), uidA, "https://thruk.example.com/r/v1/a", nil, &backend.DataResponse{})
+	if err != nil {
+		t.Fatalf("write A: %v", err)
+	}
+
+	//nolint: exhaustruct_v5
+	err = writeCachedResult(queryModelFor("/index"), uidB, "https://thruk.example.com/r/v1/b", nil, &backend.DataResponse{})
+	if err != nil {
+		t.Fatalf("write B: %v", err)
+	}
+
+	evictDatasourceResults(uidA)
+
+	_, err = getCachedResult(queryModelFor("/index"), uidA, "https://thruk.example.com/r/v1/a", nil)
+	if err == nil {
+		t.Fatal("expected datasource A entries to be evicted")
+	}
+
+	_, err = getCachedResult(queryModelFor("/index"), uidB, "https://thruk.example.com/r/v1/b", nil)
+	if err != nil {
+		t.Fatal("expected datasource B entry to remain")
 	}
 }
 

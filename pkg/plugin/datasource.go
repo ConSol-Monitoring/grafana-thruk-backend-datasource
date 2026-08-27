@@ -114,7 +114,8 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 // Dispose function is to be implemented according to the SDK interface.
 func (d *Datasource) Dispose() {
-
+	// Release cached results that belong to this datasource instance.
+	evictDatasourceResults(d.uid)
 }
 
 // CheckHealth function is to be implemented according to the SDK interface.

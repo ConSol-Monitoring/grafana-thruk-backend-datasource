@@ -13,19 +13,29 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
+// maxCachedResults bounds the number of cached responses retained in memory.
+// When the cache is full, the oldest entry is evicted (FIFO).
+const maxCachedResults = 500
+
 // CachedResult represents a cached result, has its own expiration time.
 type CachedResult struct {
-	datasourceUID  string
-	thrukURL       string
-	authScope      string
 	result         *backend.DataResponse
 	expirationTime time.Time
 }
 
+// cacheKey identifies a cached result by its datasource UID, Thruk URL and auth scope.
+type cacheKey struct {
+	datasourceUID string
+	thrukURL      string
+	authScope     string
+}
+
 //nolint:gochecknoglobals // need cache to be globally defined
 var (
-	cachedResults      = []*CachedResult{}
+	cachedResults      = map[cacheKey]*CachedResult{}
 	cachedResultsMutex sync.RWMutex
+	// cacheOrder preserves insertion order of keys for FIFO eviction once the cache reaches maxCachedResults.
+	cacheOrder []cacheKey
 )
 
 // authScope returns a deterministic string that identifies the authentication context of a request.
@@ -61,31 +71,72 @@ func authScope(headers map[string][]string) string {
 }
 
 func findCachedResult(datasourceUID string, thrukURL string, scope string) *CachedResult {
-	for _, result := range cachedResults {
-		if result.datasourceUID == datasourceUID && result.thrukURL == thrukURL && result.authScope == scope {
-			return result
+	return cachedResults[cacheKey{datasourceUID: datasourceUID, thrukURL: thrukURL, authScope: scope}]
+}
+
+// rebuildCacheOrder rebuilds cacheOrder so that it contains exactly the keys currently present in
+// cachedResults, preserving insertion order. Must be called with the write lock held.
+func rebuildCacheOrder() {
+	seen := make(map[cacheKey]struct{}, len(cachedResults))
+	newOrder := make([]cacheKey, 0, len(cachedResults))
+
+	for _, key := range cacheOrder {
+		if _, ok := cachedResults[key]; !ok {
+			continue
+		}
+
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		newOrder = append(newOrder, key)
+	}
+
+	cacheOrder = newOrder
+}
+
+// evictOldestIfNeeded evicts the oldest cache entries until the cache is within maxCachedResults.
+// Must be called with the write lock held.
+func evictOldestIfNeeded() {
+	for len(cachedResults) > maxCachedResults {
+		if len(cacheOrder) == 0 {
+			break
+		}
+
+		oldest := cacheOrder[0]
+		cacheOrder = cacheOrder[1:]
+
+		delete(cachedResults, oldest)
+	}
+}
+
+// evictDatasourceResults removes all cached results belonging to the given datasource UID.
+func evictDatasourceResults(datasourceUID string) {
+	cachedResultsMutex.Lock()
+	defer cachedResultsMutex.Unlock()
+
+	for key := range cachedResults {
+		if key.datasourceUID == datasourceUID {
+			delete(cachedResults, key)
 		}
 	}
 
-	return nil
+	rebuildCacheOrder()
 }
 
 func cleanupExpiredResults() {
 	cachedResultsMutex.Lock()
 	defer cachedResultsMutex.Unlock()
 
-	newCachedresults := make([]*CachedResult, 0)
-
 	now := time.Now()
-	for _, cachedResult := range cachedResults {
+	for key, cachedResult := range cachedResults {
 		if cachedResult.expirationTime.Before(now) {
-			continue
+			delete(cachedResults, key)
 		}
-
-		newCachedresults = append(newCachedresults, cachedResult)
 	}
 
-	cachedResults = newCachedresults
+	rebuildCacheOrder()
 }
 
 //nolint:gochecknoinits // need a global ticker
@@ -220,16 +271,21 @@ func writeCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL st
 		return fmt.Errorf("%w , table: %s", ErrCouldNotFindCachePolicy, queryModel.Table)
 	}
 
+	key := cacheKey{datasourceUID: datasourceUID, thrukURL: thrukURL, authScope: scope}
+
 	cachedResultsMutex.Lock()
 	defer cachedResultsMutex.Unlock()
 
-	cachedResults = append(cachedResults, &CachedResult{
-		datasourceUID:  datasourceUID,
-		thrukURL:       thrukURL,
-		authScope:      scope,
+	if _, exists := cachedResults[key]; !exists {
+		cacheOrder = append(cacheOrder, key)
+	}
+
+	cachedResults[key] = &CachedResult{
 		result:         result,
 		expirationTime: time.Now().Add(cachePolicy.cacheDuration),
-	})
+	}
+
+	evictOldestIfNeeded()
 
 	return nil
 }
