@@ -6,7 +6,7 @@ Thruk Datasource with Backend connects Grafana to the [Thruk](https://www.thruk.
 
 ## Requirements
 
-- Grafana 12.3.0 or later.
+- Grafana 12.4.0 or later.
 - A reachable Thruk or OMD instance with its REST API enabled.
 - Credentials that are permitted to query the target Thruk instance. The datasource supports basic authentication, `thruk_auth` based cookie authentication and API key authentication using the `X-Thruk-Auth-Key` header.
 
@@ -107,7 +107,7 @@ For testing, the a public Thruk demo instance is available at [https://demo.thru
 Update the version in `package.json` and `CHANGELOG.md`, commit and tag the release, then build and sign the archive:
 
 ```sh
-export RELVERSION=1.0.7
+export RELVERSION=0.6.0
 export GRAFANA_ACCESS_POLICY_TOKEN=...
 git commit -am "Release v${RELVERSION}"
 git tag -a "v${RELVERSION}" -m "Create release tag v${RELVERSION}"
