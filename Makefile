@@ -17,6 +17,7 @@ SHELL=bash
 GO          ?= go
 GOBIN       ?= $(shell $(GO) env GOPATH)/bin
 GOLANGCI    ?= $(GOBIN)/golangci-lint
+GOTOOLCHAINVERSION ?= go1.26.6
 PROJECT     ?= grafana-thruk-backend-datasource
 
 # current go version as major*10000+minor, ex.: go1.27.0 -> 10027
