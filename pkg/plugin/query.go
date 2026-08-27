@@ -164,7 +164,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	thrukURL := buildQueryURL(datasource, queryModel)
 
-	cachedResult, err := getCachedResult(&queryModel, datasource.uid, thrukURL, &queryMetadata.authHeaders)
+	cachedResult, err := getCachedResult(&queryModel, datasource.uid, thrukURL, queryMetadata.authHeaders)
 	if err != nil {
 		datasource.logger.Debugf("refId=%s error when getting cached result: %s", query.RefID, err.Error())
 	}
@@ -225,7 +225,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	result := parseThrukResponse(body, queryModel, query.TimeRange, datasource.logger)
 	datasource.logger.Debugf("refId=%s parsed in %v", query.RefID, time.Since(parseStart))
 
-	err = writeCachedResult(&queryModel, datasource.uid, thrukURL, &queryMetadata.authHeaders, &result)
+	err = writeCachedResult(&queryModel, datasource.uid, thrukURL, queryMetadata.authHeaders, &result)
 	if err != nil {
 		datasource.logger.Debugf("refId=%s error when writing cached result: %s", query.RefID, err.Error())
 	}

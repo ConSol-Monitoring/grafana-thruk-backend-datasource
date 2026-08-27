@@ -123,25 +123,25 @@ func TestBuildAuthHeaders(t *testing.T) {
 func TestCacheHeaderScoping(t *testing.T) {
 	t.Parallel()
 
-	cachedResultsMutex.Lock()
-	cachedResults = cachedResults[:0]
-	cachedResultsMutex.Unlock()
+	thrukURL := "https://thruk.example.com/r/v1/header-scoping"
+	uid := "ds-header-scoping"
 
-	thrukURL := "https://thruk.example.com/r/v1/"
-	hdrA := &map[string][]string{"Cookie": {"thruk_auth=AAA"}}
-	hdrB := &map[string][]string{"Cookie": {"thruk_auth=BBB"}}
+	hdrA := map[string][]string{"Cookie": {"thruk_auth=AAA"}}
+	hdrB := map[string][]string{"Cookie": {"thruk_auth=BBB"}}
 
 	//nolint: exhaustruct_v5
-	err := writeCachedResult(&QueryModel{Table: "/index"}, "ds-1", thrukURL, hdrA, &backend.DataResponse{})
+	err := writeCachedResult(queryModelFor("/index"), uid, thrukURL, hdrA, &backend.DataResponse{})
 	if err != nil {
 		t.Fatalf("failed to write cached result: %v", err)
 	}
 
-	if got := findCachedResult("ds-1", thrukURL, hdrA); got == nil {
+	_, err = getCachedResult(queryModelFor("/index"), uid, thrukURL, hdrA)
+	if err != nil {
 		t.Fatal("expected cache hit for identical auth context")
 	}
 
-	if got := findCachedResult("ds-1", thrukURL, hdrB); got != nil {
+	_, err = getCachedResult(queryModelFor("/index"), uid, thrukURL, hdrB)
+	if err == nil {
 		t.Fatal("expected cache miss for different auth context")
 	}
 }

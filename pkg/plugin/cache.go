@@ -3,7 +3,10 @@ package plugin
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,7 +17,7 @@ import (
 type CachedResult struct {
 	datasourceUID  string
 	thrukURL       string
-	headers        *map[string][]string
+	authScope      string
 	result         *backend.DataResponse
 	expirationTime time.Time
 }
@@ -25,37 +28,42 @@ var (
 	cachedResultsMutex sync.RWMutex
 )
 
-//nolint:nestif
-func findCachedResult(datasourceUID string, thrukURL string, headers *map[string][]string) *CachedResult {
+// authScope returns a deterministic string that identifies the authentication context of a request.
+// Nil and empty header maps are equivalent and both yield an empty scope.
+func authScope(headers map[string][]string) string {
+	if len(headers) == 0 {
+		return ""
+	}
+
+	normalized := make(map[string][]string, len(headers))
+	for name, values := range headers {
+		canonical := http.CanonicalHeaderKey(name)
+		normalized[canonical] = append(normalized[canonical], values...)
+	}
+
+	names := make([]string, 0, len(normalized))
+	for name := range normalized {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	var scope strings.Builder
+
+	for _, name := range names {
+		values := append([]string(nil), normalized[name]...)
+		sort.Strings(values)
+
+		fmt.Fprintf(&scope, "%s=%s;", strings.ToLower(name), strings.Join(values, ","))
+	}
+
+	return scope.String()
+}
+
+func findCachedResult(datasourceUID string, thrukURL string, scope string) *CachedResult {
 	for _, result := range cachedResults {
-		if result.datasourceUID == datasourceUID && result.thrukURL == thrukURL {
-			headersMatch := true
-
-			if headers != nil {
-				if len(*headers) != len(*result.headers) {
-					continue
-				}
-
-				for header, value := range *headers {
-					resultValue, ok := (*result.headers)[header]
-
-					if !ok {
-						headersMatch = false
-
-						break
-					}
-
-					if !slices.Equal(value, resultValue) {
-						headersMatch = false
-
-						break
-					}
-				}
-			}
-
-			if headersMatch {
-				return result
-			}
+		if result.datasourceUID == datasourceUID && result.thrukURL == thrukURL && result.authScope == scope {
+			return result
 		}
 	}
 
@@ -100,47 +108,59 @@ type CachePolicy struct {
 	filterToTables *[]string
 	// policy will only work when these headers are present
 	filterToHeaders *[]string
-	cacheDuration   time.Duration
+	// requiresAuth marks the policy as unsafe to use without an authentication context.
+	// A request with an empty auth scope is only eligible for policies that do not require auth.
+	requiresAuth  bool
+	cacheDuration time.Duration
 }
 
 //nolint:gochecknoglobals // need cache policies to be globally defined
 var (
 	cachePolicies = []CachePolicy{
 		{
-			&[]string{"/", "/index", "/thruk"},
-			nil,
-			1 * time.Hour,
+			filterToTables:  &[]string{"/", "/index", "/thruk"},
+			filterToHeaders: nil,
+			requiresAuth:    false,
+			cacheDuration:   1 * time.Hour,
 		},
 		{
-			&[]string{"/users"},
-			nil,
-			1 * time.Minute,
+			filterToTables:  &[]string{"/users"},
+			filterToHeaders: nil,
+			requiresAuth:    true,
+			cacheDuration:   1 * time.Minute,
 		},
 		{
-			&[]string{"/sites"},
-			nil,
-			1 * time.Minute,
+			filterToTables:  &[]string{"/sites"},
+			filterToHeaders: nil,
+			requiresAuth:    true,
+			cacheDuration:   1 * time.Minute,
 		},
 		{
-			nil,
-			&[]string{"X-Thruk-Output-Metadata-Only"},
-			1 * time.Hour,
+			filterToTables:  nil,
+			filterToHeaders: &[]string{"X-Thruk-Output-Metadata-Only"},
+			requiresAuth:    true,
+			cacheDuration:   1 * time.Hour,
 		},
 	}
 )
 
-func findCachePolicy(qm *QueryModel, headers *map[string][]string) *CachePolicy {
+func findCachePolicy(qm *QueryModel, authHeaders map[string][]string, scope string) *CachePolicy {
 	for _, policy := range cachePolicies {
 		if policy.filterToTables != nil &&
 			(qm == nil || !slices.Contains(*policy.filterToTables, qm.Table)) {
 			continue
 		}
 
+		// never serve a policy that requires authentication to a request without an auth context
+		if policy.requiresAuth && scope == "" {
+			continue
+		}
+
 		if policy.filterToHeaders != nil {
-			hasRequiredHeader := headers != nil && len(*headers) > 0 &&
+			hasRequiredHeader := len(authHeaders) > 0 &&
 				slices.ContainsFunc(*policy.filterToHeaders,
 					func(e string) bool {
-						_, ok := (*headers)[e]
+						_, ok := authHeaders[e]
 
 						return ok
 					})
@@ -164,16 +184,18 @@ var ErrNoCachedResults = errors.New("there are no cached results")
 // ErrCachedResultExpired error type.
 var ErrCachedResultExpired = errors.New("there is a cached result, but it is expired")
 
-func getCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, headers *map[string][]string) (*CachedResult, error) {
+func getCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, authHeaders map[string][]string) (*CachedResult, error) {
 	cachedResultsMutex.RLock()
 	defer cachedResultsMutex.RUnlock()
 
-	cachePolicy := findCachePolicy(queryModel, headers)
+	scope := authScope(authHeaders)
+
+	cachePolicy := findCachePolicy(queryModel, authHeaders, scope)
 	if cachePolicy == nil {
 		return nil, fmt.Errorf("%w , table: %s", ErrCouldNotFindCachePolicy, queryModel.Table)
 	}
 
-	cachedResult := findCachedResult(datasourceUID, thrukURL, headers)
+	cachedResult := findCachedResult(datasourceUID, thrukURL, scope)
 	if cachedResult == nil {
 		return nil, fmt.Errorf("%w , datasourceUID: %s , thrukUrl: %s", ErrNoCachedResults, datasourceUID, thrukURL)
 	}
@@ -186,12 +208,14 @@ func getCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL stri
 	return cachedResult, nil
 }
 
-func writeCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, headers *map[string][]string, result *backend.DataResponse) error {
+func writeCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL string, authHeaders map[string][]string, result *backend.DataResponse) error {
 	if result == nil {
 		return fmt.Errorf("%w , argument: result", ErrArgumentNil)
 	}
 
-	cachePolicy := findCachePolicy(queryModel, headers)
+	scope := authScope(authHeaders)
+
+	cachePolicy := findCachePolicy(queryModel, authHeaders, scope)
 	if cachePolicy == nil {
 		return fmt.Errorf("%w , table: %s", ErrCouldNotFindCachePolicy, queryModel.Table)
 	}
@@ -202,7 +226,7 @@ func writeCachedResult(queryModel *QueryModel, datasourceUID string, thrukURL st
 	cachedResults = append(cachedResults, &CachedResult{
 		datasourceUID:  datasourceUID,
 		thrukURL:       thrukURL,
-		headers:        headers,
+		authScope:      scope,
 		result:         result,
 		expirationTime: time.Now().Add(cachePolicy.cacheDuration),
 	})
