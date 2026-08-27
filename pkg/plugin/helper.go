@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -45,17 +44,33 @@ func validateAPIPath(value string) error {
 		return ErrInvalidAPIPath
 	}
 
-	decoded, err := url.PathUnescape(value)
-	if err != nil || strings.ContainsAny(decoded, "\x00\r\n") {
-		return ErrInvalidAPIPath
+	const maxDecodePasses = 8
+
+	decoded := value
+	for range maxDecodePasses {
+		if strings.ContainsAny(decoded, "\\\x00\r\n") {
+			return ErrInvalidAPIPath
+		}
+
+		for segment := range strings.SplitSeq(decoded, "/") {
+			if segment == ".." {
+				return ErrAPIPathEscapes
+			}
+		}
+
+		next, err := url.PathUnescape(decoded)
+		if err != nil {
+			return ErrInvalidAPIPath
+		}
+
+		if next == decoded {
+			return nil
+		}
+
+		decoded = next
 	}
 
-	clean := filepath.Clean("/" + decoded)
-	if clean == "/.." || strings.HasPrefix(clean, "/../") {
-		return ErrAPIPathEscapes
-	}
-
-	return nil
+	return ErrInvalidAPIPath
 }
 
 // cookieNames extracts the cookie names from the raw values of a Cookie header.
