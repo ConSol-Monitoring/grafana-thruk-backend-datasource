@@ -156,6 +156,7 @@ export const QueryEditor = (props: Props) => {
           isClearable={true}
           createCustomValue={true}
           value={queryDefaulted.table || '/'}
+          data-testid="query-editor-from"
           onChange={(v) => {
             onValueChange('table', v !== null ? v.value : '/');
           }}
@@ -286,6 +287,7 @@ export const QueryEditor = (props: Props) => {
         </SegmentSection>
         <Combobox
           value={queryDefaulted.type || 'table'}
+          data-testid="query-editor-type"
           options={[
             { label: 'Table', value: 'table' },
             { label: 'Timeseries', value: 'graph' },
