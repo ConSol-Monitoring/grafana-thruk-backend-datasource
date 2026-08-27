@@ -74,7 +74,7 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 		//nolint:mnd // permission bits
 		err := os.MkdirAll(dir, 0o0750)
 		if err != nil {
-			return nil, fmt.Errorf("error when making directories for the logfile: %w", err)
+			return nil, fmt.Errorf("error when making directories for the logfile %q: %w", expandedPath, err)
 		}
 	}
 
@@ -83,7 +83,7 @@ func createLoggerFromDatasourceSettings(jsonData *DatasourceSettingsJSONDataPart
 	//nolint:gosec,mnd  // filename to open is dynamic due to user input, and that is intended , permission bits
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o0640)
 	if err != nil {
-		return nil, fmt.Errorf("error when creating a file descriptor: %w", err)
+		return nil, fmt.Errorf("error when opening the logfile %q: %w", filename, err)
 	}
 
 	err = file.Close()
