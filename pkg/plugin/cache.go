@@ -223,7 +223,7 @@ func rewriteAliasedEndpoints(queryModel *QueryModel) bool {
 		queryModel.Table = "/thruk/metrics"
 		changed = true
 	case "/thruk/node-control/nodes":
-		queryModel.Table = "/thruk/nc/odes"
+		queryModel.Table = "/thruk/nc/nodes"
 		changed = true
 	}
 
