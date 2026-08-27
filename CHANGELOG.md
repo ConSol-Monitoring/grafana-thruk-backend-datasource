@@ -1,5 +1,9 @@
 ### Changelog
 
+0.7.1    27-08-2026
+    - fix formatting using prettier
+    - fix version definitions in plugin.json and package.json
+
 0.7.0    27-08-2026
     - scope the response cache to the authenticated request, preventing cross-user cache hits and fixing a nil-pointer panic on headerless lookups
     - forward only an allow-list of authentication headers (Cookie, Authorization, X-Id-Token) to Thruk instead of all forwarded headers
