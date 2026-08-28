@@ -1,5 +1,14 @@
 ### Changelog
 
+0.7.2    28-08-2026
+    - add makefile target govulncheck, builds its own govulncheck and checks the source code
+    - force override serialize-javascript npm package due to GHSA-5c6j-r48x-rmvq , which is fixed in 7.0.3
+    - downgrade to go 1.26.6 from 1.27.0 , as with the newer version govulncheck could not be built
+    - remove built-in file logger, use the logger from the SDK. Remove logLevel and logPath input variables from the frontend
+    - warn when thruk_auth cookie is missing from the kept and forwarded cookie list
+    - add makefile target build-plugin-for-validation and build-plugin-soruces-for-validation
+    - remove makefile target buildzipforvalidator, had too vague naming
+
 0.7.1    27-08-2026
     - fix formatting using prettier
     - fix version definitions in plugin.json and package.json

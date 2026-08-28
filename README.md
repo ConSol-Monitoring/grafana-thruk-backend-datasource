@@ -107,7 +107,7 @@ For testing, the a public Thruk demo instance is available at [https://demo.thru
 Update the version in `package.json` and `CHANGELOG.md`, commit and tag the release, then build and sign the archive:
 
 ```sh
-export RELVERSION=0.6.0
+export RELVERSION=0.7.2
 export GRAFANA_ACCESS_POLICY_TOKEN=...
 git commit -am "Release v${RELVERSION}"
 git tag -a "v${RELVERSION}" -m "Create release tag v${RELVERSION}"
