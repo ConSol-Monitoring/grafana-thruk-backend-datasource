@@ -45,11 +45,7 @@ type DatasourceSettingsJSONDataPartial struct {
 	// from interface ThrukDataSourceOptions in src/types.ts
 	// ======================
 	// 'thruk_auth' is always added when parsing props in ConfigEditor.tsx
-	// KeepCookies []string `json:"keepCookies"`
-	// Has its own <Input> field in ConfigEditor.tsx
-	LogLevel int64 `json:"logLevel"`
-	// Has its own <Input> field in ConfigEditor.tsx
-	LogPath string `json:"logPath"`
+	KeepCookies []string `json:"keepCookies"`
 	// ======================
 
 	// from Auth part of the ConfigEditor.tsx , no need to parse here
@@ -77,10 +73,7 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		}
 	}
 
-	loggers, err := NewLoggers(&jsonDataPartial, settings.UID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
-	}
+	loggers := NewLoggers(settings.UID)
 
 	datasource := &Datasource{
 		url:        datasourceURL,
@@ -95,8 +88,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	// Headers to forward, TLS configuration, Basic HTTP Authentication, Proxy, Timeouts, SigV4
 	httpOpts, err := settings.HTTPClientOptions(ctx)
 	if err != nil {
-		loggers.Close()
-
 		return nil, fmt.Errorf("failed to get http client options from context: %w", err)
 	}
 
@@ -108,8 +99,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 	client, err := provider.New(httpOpts)
 	if err != nil {
-		loggers.Close()
-
 		return nil, fmt.Errorf("could not create http client using provider: %w", err)
 	}
 
@@ -122,9 +111,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 func (d *Datasource) Dispose() {
 	// Release cached results that belong to this datasource instance.
 	evictDatasourceResults(d.uid)
-
-	// Flush and close the optional log file.
-	d.loggers.Close()
 }
 
 // CheckHealth function is to be implemented according to the SDK interface.

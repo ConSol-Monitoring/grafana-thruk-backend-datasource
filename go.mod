@@ -2,12 +2,7 @@ module github.com/ConSol-Monitoring/grafana-thruk-backend-datasource
 
 go 1.26.6
 
-require (
-	github.com/grafana/grafana-plugin-sdk-go v0.296.3
-	github.com/jsternberg/zap-logfmt v1.3.0
-	go.uber.org/zap v1.28.0
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-)
+require github.com/grafana/grafana-plugin-sdk-go v0.296.3
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
@@ -78,7 +73,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260820142414-ca536658362e // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect

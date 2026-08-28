@@ -1,14 +1,11 @@
 import { DataSourceSettings } from '@grafana/data';
 import { ThrukDataSourceOptions } from '../types';
 
-export const defaultLogLevel = 0;
 export const defaultKeepCookies = ['thruk_auth'];
 
 // applyThrukDefaults merges the plugin's defaults into jsonData so that a saved
-// datasource configuration always carries keepCookies=['thruk_auth'] and a log
-// level, even when the user never touches those fields. A log path is intentionally
-// not defaulted: logging goes to Grafana's own pipeline unless the user configures
-// an explicit file path.
+// datasource configuration always carries keepCookies=['thruk_auth'], even when
+// the user never touches that field.
 export function applyThrukDefaults(
   config: DataSourceSettings<ThrukDataSourceOptions>
 ): DataSourceSettings<ThrukDataSourceOptions> {
@@ -16,7 +13,6 @@ export function applyThrukDefaults(
     ...config,
     jsonData: {
       ...config.jsonData,
-      logLevel: config.jsonData.logLevel ?? defaultLogLevel,
       keepCookies: config.jsonData.keepCookies ?? defaultKeepCookies,
     },
   };

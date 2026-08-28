@@ -15,8 +15,6 @@ datasources:
     jsonData:
       authType: basic
       path: '/resources'
-      logPath: './logs/demo-thruk-org.log'
-      logLevel: 7
     secureJsonData:
       apiKey: 'api-key'
       basicAuthPassword: test
@@ -35,8 +33,6 @@ datasources:
   #   basicAuthUser: omdadmin
   #   jsonData:
   #     path: '/resources'
-  #     logPath: './logs/omd-dev-basic-auth.log'
-  #     logLevel: 7
   #     tlsSkipVerify: true
   #   secureJsonData:
   #     basicAuthPassword: omd
@@ -54,8 +50,6 @@ datasources:
   #   basicAuth: false
   #   jsonData:
   #     path: '/resources'
-  #     logPath: './logs/omd-dev-thruk-auth.log'
-  #     logLevel: 3
   #     tlsSkipVerify: true
   #     httpHeaderName1: X-Thruk-Auth-Key
   #   secureJsonData:

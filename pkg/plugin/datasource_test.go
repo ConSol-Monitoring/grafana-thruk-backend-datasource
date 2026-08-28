@@ -62,9 +62,7 @@ func TestQueryData(t *testing.T) {
 		httpClient: nil,
 		uid:        "",
 		loggers: &Loggers{
-			sdk:        log.NewNullLogger(),
-			fileLogger: nil,
-			fileClose:  nil,
+			sdk: log.NewNullLogger(),
 		},
 	}
 
@@ -91,27 +89,4 @@ func TestQueryData(t *testing.T) {
 	}
 }
 
-func TestDisposeClosesFileLogger(t *testing.T) {
-	t.Parallel()
 
-	closed := false
-
-	datasource := Datasource{
-		url:        "",
-		httpClient: nil,
-		uid:        "",
-		loggers: &Loggers{
-			sdk:        log.NewNullLogger(),
-			fileLogger: nil,
-			fileClose: func() {
-				closed = true
-			},
-		},
-	}
-
-	datasource.Dispose()
-
-	if !closed {
-		t.Fatal("expected Dispose to flush and close the file logger")
-	}
-}

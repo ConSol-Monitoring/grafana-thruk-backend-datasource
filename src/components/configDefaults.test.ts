@@ -1,6 +1,6 @@
 import { DataSourceSettings } from '@grafana/data';
 import { ThrukDataSourceOptions } from '../types';
-import { applyThrukDefaults, defaultKeepCookies, defaultLogLevel } from './configDefaults';
+import { applyThrukDefaults, defaultKeepCookies } from './configDefaults';
 
 function baseConfig(): DataSourceSettings<ThrukDataSourceOptions> {
   return {
@@ -25,39 +25,17 @@ function baseConfig(): DataSourceSettings<ThrukDataSourceOptions> {
   };
 }
 
-test('applyThrukDefaults fills keepCookies and logLevel, but leaves logPath unset', () => {
+test('applyThrukDefaults fills keepCookies', () => {
   const result = applyThrukDefaults(baseConfig());
 
   expect(result.jsonData.keepCookies).toEqual(defaultKeepCookies);
-  expect(result.jsonData.logLevel).toBe(defaultLogLevel);
-  expect(result.jsonData.logPath).toBeUndefined();
-});
-
-test('applyThrukDefaults preserves an explicitly configured logPath', () => {
-  const result = applyThrukDefaults({
-    ...baseConfig(),
-    jsonData: { logPath: '/custom.log' },
-  });
-
-  expect(result.jsonData.logPath).toBe('/custom.log');
 });
 
 test('applyThrukDefaults preserves explicit values including empty keepCookies', () => {
   const result = applyThrukDefaults({
     ...baseConfig(),
-    jsonData: { keepCookies: [], logLevel: 7, logPath: '/custom.log' },
+    jsonData: { keepCookies: [] },
   });
 
   expect(result.jsonData.keepCookies).toEqual([]);
-  expect(result.jsonData.logLevel).toBe(7);
-  expect(result.jsonData.logPath).toBe('/custom.log');
-});
-
-test('applyThrukDefaults preserves a zero log level', () => {
-  const result = applyThrukDefaults({
-    ...baseConfig(),
-    jsonData: { logLevel: 0 },
-  });
-
-  expect(result.jsonData.logLevel).toBe(0);
 });
