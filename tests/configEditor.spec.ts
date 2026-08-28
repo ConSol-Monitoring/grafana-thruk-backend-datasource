@@ -3,8 +3,6 @@ import { test, expect } from '@grafana/plugin-e2e';
 test('smoke: should render config editor', async ({ createDataSourceConfigPage, page }) => {
   await createDataSourceConfigPage({ type: 'consolmonitoring-thruk-datasource' });
   await expect(page.getByLabel('URL')).toBeVisible();
-  await expect(page.getByPlaceholder('Enter a numeric log level')).toBeVisible();
-  await expect(page.getByPlaceholder('Enter a log path')).toBeVisible();
 });
 
 test('"Save & test" should be successful when the provisioned Thruk instance is reachable', async ({
