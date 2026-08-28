@@ -129,17 +129,6 @@ golangci: tools
 	@echo "  - GOOS=linux"
 	GOOS=linux CGO_ENABLED=0 $(GOLANGCI) run $(GOLANG_CI_OPTIONS) ./...
 
-buildzipforvalidator: build
-	@$(MAKE) buildbackend
-	@set -eu; \
-		PLUGIN_ID=$$(grep '"id"' < src/plugin.json | sed -E 's/.*"id" *: *"(.*)".*/\1/' | tr -cd 'a-zA-Z0-9._-'); \
-		TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
-		ZIP_NAME="$${PLUGIN_ID}-$${TIMESTAMP}.zip"; \
-		cp -r dist "$${PLUGIN_ID}"; \
-		zip -qr "$${ZIP_NAME}" "$${PLUGIN_ID}"; \
-		rm -rf "$${PLUGIN_ID}"; \
-		echo "created $${ZIP_NAME}"
-
 # Package the built plugin as plugin.zip
 # This is intdended to be run with grafana plugin-validator
 build-plugin-for-validation: build
