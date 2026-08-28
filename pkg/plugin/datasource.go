@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -80,6 +81,10 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		httpClient: nil,
 		uid:        settings.UID,
 		loggers:    loggers,
+	}
+
+	if !slices.Contains(jsonDataPartial.KeepCookies, "thruk_auth") {
+		datasource.loggers.warnf("keepCookies does not contain 'thruk_auth' cookie, which is required in the per-cookie authentication path with OMD, ensure this is intentional")
 	}
 
 	datasource.loggers.debugf("settings:\n%s", DataSourceInstanceSettingsToString(&settings))
