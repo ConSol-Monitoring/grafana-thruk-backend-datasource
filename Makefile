@@ -139,3 +139,36 @@ buildzipforvalidator: build
 		zip -qr "$${ZIP_NAME}" "$${PLUGIN_ID}"; \
 		rm -rf "$${PLUGIN_ID}"; \
 		echo "created $${ZIP_NAME}"
+
+# Package the built plugin as plugin.zip
+# This is intdended to be run with grafana plugin-validator
+build-plugin-for-validation: build
+	@$(MAKE) buildbackend
+	@set -eu; \
+		PLUGIN_ID=$$(grep '"id"' < src/plugin.json | sed -E 's/.*"id" *: *"(.*)".*/\1/' | tr -cd 'a-zA-Z0-9._-'); \
+		rm -rf "$${PLUGIN_ID}" plugin.zip; \
+		cp -r dist "$${PLUGIN_ID}"; \
+		zip -qr plugin.zip "$${PLUGIN_ID}"; \
+		rm -rf "$${PLUGIN_ID}"; \
+		echo "created plugin.zip"
+
+# Package the plugin source as sources.zip (overwrites any existing sources.zip).
+# Excludes caches, build output, git metadata and other files that are not part of the plugin source.
+# This is intdended to be run with grafana plugin-validator
+build-plugin-sources-for-validation:
+	rm -f sources.zip
+	cd .. && zip -r "$(notdir $(CURDIR))/sources.zip" "$(notdir $(CURDIR))" \
+		-x '$(notdir $(CURDIR))/.cache/*' \
+		-x '$(notdir $(CURDIR))/.npm/*' \
+		-x '$(notdir $(CURDIR))/node_modules/*' \
+		-x '$(notdir $(CURDIR))/.git/*' \
+		-x '$(notdir $(CURDIR))/dist/*' \
+		-x '$(notdir $(CURDIR))/logs/*' \
+		-x '$(notdir $(CURDIR))/test-results/*' \
+		-x '$(notdir $(CURDIR))/playwright-report/*' \
+		-x '$(notdir $(CURDIR))/.eslintcache' \
+		-x '$(notdir $(CURDIR))/pre-release-check.md' \
+		-x '$(notdir $(CURDIR))/.bra.toml' \
+		-x '$(notdir $(CURDIR))/TODO' \
+		-x '$(notdir $(CURDIR))/*.zip'
+	@echo "created sources.zip"
