@@ -89,6 +89,8 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 	datasource.loggers.debugf("settings:\n%s", DataSourceInstanceSettingsToString(&settings))
 
+	datasource.loggers.debugf("development mode: %t", isDevelopmentMode())
+
 	// SDK provides a way of building http client options directly from context. This sets up a lot of things e.g:
 	// Headers to forward, TLS configuration, Basic HTTP Authentication, Proxy, Timeouts, SigV4
 	httpOpts, err := settings.HTTPClientOptions(ctx)

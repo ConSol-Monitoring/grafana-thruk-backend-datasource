@@ -321,8 +321,6 @@ func parseThrukResponse(body []byte, queryModel QueryModel, timeRange backend.Ti
 
 // This function assumes that thrukResponse.Data is of type []map[string]any
 // Even when the response was a single object, it is converted in parseThrukResponse into []map[string]any .
-//
-//nolint:funlen
 func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visType string, loggers *Loggers) backend.DataResponse {
 	// add known query types from query model and columns
 	overrideKnownGrafanaDataTypes(qm, thrukResp.Meta)
@@ -349,40 +347,15 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 			switch fieldType {
 			case data.FieldTypeInt64:
 				field.Append(anyToInt64(val))
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "int64",
-					Color:       map[string]any{"mode": "fixed", "fixedColor": "blue"},
-					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-				}
 			case data.FieldTypeFloat64:
 				field.Append(anyToFloat64(val))
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "float64",
-					Color:       map[string]any{"mode": "fixed", "fixedColor": "silver"},
-					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-				}
 			case data.FieldTypeTime:
 				field.Append(anyToTime(val))
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "time",
-					Color:       map[string]any{"mode": "fixed", "fixedColor": "green"},
-					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-				}
 			case data.FieldTypeBool:
 				field.Append(anyToBool(val))
-				// Bool fields have built in coloring , light green and light red
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "bool",
-					Custom:      map[string]any{"cellOptions": map[string]any{"mode": "thresholds", "type": "color-background"}},
-				}
 			case data.FieldTypeString:
 				switch specifiedType {
 				// array of strings
-				// gets a different color, fuchsia
 				case "array_of_strings":
 					val2 := []string{}
 
@@ -393,32 +366,18 @@ func buildTableFrame(qm *QueryModel, thrukResp *ThrukWrappedJSONResponse, visTyp
 					}
 
 					field.Append(anyToString(val2))
-					//nolint: exhaustruct_v5
-					field.Config = &data.FieldConfig{
-						Description: "string",
-						Color:       map[string]any{"mode": "fixed", "fixedColor": "fuchsia"},
-						Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-					}
 				// normal string that is to be displayed as a string
 				default:
 					field.Append(anyToString(val))
-					//nolint: exhaustruct_v5
-					field.Config = &data.FieldConfig{
-						Description: "string",
-						Color:       map[string]any{"mode": "fixed", "fixedColor": "purple"},
-						Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-					}
 				}
 			// unknown ones are selected as strings
 			default:
 				field.Append(anyToString(val))
-				//nolint: exhaustruct_v5
-				field.Config = &data.FieldConfig{
-					Description: "string",
-					Color:       map[string]any{"mode": "fixed", "fixedColor": "black"},
-					Custom:      map[string]any{"cellOptions": map[string]any{"type": "color-background"}},
-				}
 			}
+		}
+
+		if isDevelopmentMode() {
+			field.Config = buildDevelopmentFieldConfig(fieldType, specifiedType)
 		}
 
 		frame.Fields = append(frame.Fields, field)

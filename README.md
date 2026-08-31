@@ -94,6 +94,8 @@ make dev
 
 Development requires Docker, Node.js 24 for the containerized frontend build, and Go 1.27 or later for the backend build. The development Grafana instance is available at [http://localhost:3000](http://localhost:3000) after running `make dev`. Run `make build` once before starting the development container, then add the datasource manually.
 
+The development `docker-compose.yaml` sets the environment variable `THRUK_DATASOURCE_DEVELOPMENT=true` on the Grafana container. The plugin backend inherits it from Grafana and enables development-only behavior. Release archives and regular Grafana installations never set this variable, so the plugin runs in production mode there and returns fields without that coloring.
+
 The development environment provisions a datasource connected to `demo.thruk.org` and a dashboard using it.
 
 ![Provisioned demo datasource](https://raw.githubusercontent.com/ConSol-Monitoring/grafana-thruk-backend-datasource/master/img/provisioned-demo-thruk-org.png)

@@ -1,5 +1,8 @@
 ### Changelog
 
+next
+    - color table fields by their detected type only in development mode, gated by the THRUK_DATASOURCE_DEVELOPMENT environment variable which the development docker-compose sets; production responses are no longer colored
+
 0.7.2    28-08-2026
     - add makefile target govulncheck, builds its own govulncheck and checks the source code
     - force override serialize-javascript npm package due to GHSA-5c6j-r48x-rmvq , which is fixed in 7.0.3

@@ -6,3 +6,10 @@ services:
     build:
       args:
         development: "true"
+
+    environment:
+      # Only set while developing directly from the sources: it switches the
+      # plugin backend into development mode (e.g. table field coloring in
+      # buildTableFrame). Release/production Grafana installations never set
+      # this variable, so the plugin runs in production mode there.
+      THRUK_DATASOURCE_DEVELOPMENT: "true"
