@@ -9,12 +9,12 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
 )
 
 var (
@@ -24,7 +24,10 @@ var (
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 )
 
-const defaultLimit = 1000
+const (
+	defaultLimit         = 1000
+	maxConcurrentQueries = 1000
+)
 
 // Datasource struct contains our own definition of the Datasource and the components it needs
 // It should implement CheckHealth() , Query() , Dispose() , CallResource() etc.
@@ -224,34 +227,14 @@ func (d *Datasource) CheckHealth(ctx context.Context, checkHealthReq *backend.Ch
 }
 
 // QueryData function is to be implemented according to the SDK interface.
+// Runs all queries of a request concurrently via the SDK's experimental/concurrent package
+// Caps concurrency according to maxConcurrentQueries
+// recovers panics of a single query into an error response for that query instead of crashing the plugin.
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	d.loggers.debugf("received %d queries", len(req.Queries))
 
-	results := make([]backend.DataResponse, len(req.Queries))
-
-	var waitGroup sync.WaitGroup
-
-	for idx, dataQuery := range req.Queries {
-		waitGroup.Add(1)
-
-		go func(i int, q backend.DataQuery) {
-			defer waitGroup.Done()
-
-			results[i] = query(ctx, d, q, req)
-		}(idx, dataQuery)
-	}
-
-	waitGroup.Wait()
-
-	response := backend.NewQueryDataResponse()
-	for i, q := range req.Queries {
-		response.Responses[q.RefID] = results[i]
-	}
-
-	// responseJSON, _ := response.DeepCopy().MarshalJSON()
-	// d.loggers.debugf("[QueryData] response:\n%v", string(responseJSON))
-
-	return response, nil
+	//nolint:wrapcheck // error is handled by the SDK, no need to wrap it
+	return concurrent.QueryData(ctx, req, d.handleSingleQueryData, maxConcurrentQueries)
 }
 
 // ErrResponseBodyRead error type.
@@ -424,6 +407,11 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		Body:    body,
 		Headers: map[string][]string{},
 	})
+}
+
+// handleSingleQueryData executes a single query of a QueryDataRequest.
+func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Query) backend.DataResponse {
+	return query(ctx, d, q)
 }
 
 func sendBadRequest(sender backend.CallResourceResponseSender, err error) error {

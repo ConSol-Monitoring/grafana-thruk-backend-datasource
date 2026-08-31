@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/useragent"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
 )
 
 // QueryModel is what a Query from Grafana SDK will contain
@@ -65,9 +66,9 @@ type QueryMetadata struct {
 	authHeaders map[string][]string
 }
 
-// buildQueryMetadataFromContext extracts user/org/header metadata from the query context and the request.
-func buildQueryMetadataFromContext(ctx context.Context, req *backend.QueryDataRequest) QueryMetadata {
-	pluginContext := backend.PluginConfigFromContext(ctx)
+// buildQueryMetadataFromContext extracts user/org/header metadata from the query context and the query.
+func buildQueryMetadataFromContext(ctx context.Context, singleQuery concurrent.Query) QueryMetadata {
+	pluginContext := singleQuery.PluginContext
 	//nolint: exhaustruct_v5
 	meta := QueryMetadata{
 		Namespace:     pluginContext.Namespace,
@@ -84,9 +85,7 @@ func buildQueryMetadataFromContext(ctx context.Context, req *backend.QueryDataRe
 		meta.GrafanaVersion = ua.GrafanaVersion()
 	}
 
-	if req != nil {
-		meta.authHeaders = buildAuthHeaders(req.GetHTTPHeaders())
-	}
+	meta.authHeaders = buildAuthHeaders(singleQuery.Headers)
 
 	return meta
 }
@@ -126,7 +125,9 @@ func (qm *QueryMetadata) hasCookie(name string) bool {
 // ====================================================================================================================
 
 //nolint:funlen
-func query(ctx context.Context, datasource *Datasource, query backend.DataQuery, backendReq *backend.QueryDataRequest) backend.DataResponse {
+func query(ctx context.Context, datasource *Datasource, singleQuery concurrent.Query) backend.DataResponse {
+	query := singleQuery.DataQuery
+
 	var queryModel QueryModel
 
 	err := json.Unmarshal(query.JSON, &queryModel)
@@ -142,7 +143,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 	}
 
 	// merge the frontend-injected dashboard/panel context into a per-query copy
-	queryMetadata := buildQueryMetadataFromContext(ctx, backendReq)
+	queryMetadata := buildQueryMetadataFromContext(ctx, singleQuery)
 	queryMetadata.DashboardUID = queryModel.DashboardUID
 	queryMetadata.DashboardTitle = queryModel.DashboardTitle
 	queryMetadata.PanelID = queryModel.PanelID
@@ -185,7 +186,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 	// Forward only the allow-listed authentication headers (Cookie, Authorization, X-Id-Token).
 	// Grafana controls which of these reach the plugin via the allowed-cookie list and OAuth identity forwarding.
-	forwardAuthHeaders(thrukReq, backendReq.GetHTTPHeaders())
+	forwardAuthHeaders(thrukReq, singleQuery.Headers)
 
 	datasource.loggers.debugf("refId=%s HTTP GET %s", query.RefID, thrukURL)
 
@@ -198,6 +199,7 @@ func query(ctx context.Context, datasource *Datasource, query backend.DataQuery,
 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("request failed: %v", err))
 	}
+
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/useragent"
+	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
 )
 
 func TestBuildQueryMeta(t *testing.T) {
@@ -45,7 +46,13 @@ func TestBuildQueryMeta(t *testing.T) {
 		},
 	}
 
-	meta := buildQueryMetadataFromContext(ctx, req)
+	//nolint:exhaustruct_v5
+	q := concurrent.Query{
+		PluginContext: pluginContext,
+		Headers:       req.GetHTTPHeaders(),
+	}
+
+	meta := buildQueryMetadataFromContext(ctx, q)
 	if meta.User == nil || meta.User.Login != "alice" {
 		t.Fatalf("expected user alice, got %+v", meta.User)
 	}
@@ -77,9 +84,9 @@ func TestBuildQueryMetaWithoutUser(t *testing.T) {
 
 	ctx := context.Background()
 	//nolint: exhaustruct_v5
-	req := &backend.QueryDataRequest{}
+	q := concurrent.Query{}
 
-	meta := buildQueryMetadataFromContext(ctx, req)
+	meta := buildQueryMetadataFromContext(ctx, q)
 	if meta.User != nil {
 		t.Fatalf("expected nil user, got %+v", meta.User)
 	}
