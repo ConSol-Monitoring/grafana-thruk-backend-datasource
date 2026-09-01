@@ -2,7 +2,7 @@ module github.com/ConSol-Monitoring/grafana-thruk-backend-datasource
 
 go 1.26.6
 
-require github.com/grafana/grafana-plugin-sdk-go v0.296.3
+require github.com/grafana/grafana-plugin-sdk-go v0.296.4
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
